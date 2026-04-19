@@ -1,81 +1,83 @@
-import { useState } from "react";
-import { useAuth } from "../context/AuthContext";
+import { useState, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 
-export default function Login({ onLogin }) {
-  const { login } = useAuth();
+const HexLogo = () => (
+  <svg viewBox="0 0 64 64" fill="none">
+    <polygon points="32,4 56,18 56,46 32,60 8,46 8,18" fill="#E6F7F6" />
+    <polygon points="32,10 50,20 50,44 32,54 14,44 14,20" fill="#00A89D" opacity="0.25" />
+    <polygon points="32,16 48,25 48,43 32,52 16,43 16,25" fill="#00A89D" />
+    <polygon points="38,16 48,25 48,32 32,32 32,16" fill="#8DC63F" />
+  </svg>
+);
+
+export default function Login() {
+  const { login } = useContext(AuthContext);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [error, setError] = useState(null);
+  const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setError(null);
+    setError("");
     setLoading(true);
     try {
       await login(email, password);
-      onLogin?.();
     } catch (err) {
-      setError(err.message);
+      setError(err.message || "Email ou mot de passe incorrect");
     } finally {
       setLoading(false);
     }
   };
 
   return (
-    <div style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center", background: "var(--bg)" }}>
-      <div style={{ width: 380, background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-xl)", padding: "36px 32px" }}>
-
-        {/* Logo */}
-        <div style={{ marginBottom: 28, textAlign: "center" }}>
-          <div style={{ fontSize: 20, fontWeight: 700, color: "var(--blue-700)", letterSpacing: "-0.4px" }}>VeilleHospital</div>
-          <div style={{ fontSize: 13, color: "var(--text-secondary)", marginTop: 4 }}>Connectez-vous à votre espace</div>
+    <div className="login-page">
+      <div className="login-card">
+        <div className="login-logo">
+          <HexLogo />
+          <div className="login-brand">HévivA</div>
+          <div className="login-tagline">Des liens. Des lieux. La vie !</div>
         </div>
 
+        <div className="login-platform">Plateforme de suivi des veilles hospitalières</div>
+        <hr className="login-divider" />
+
         <form onSubmit={handleSubmit}>
-          <div style={{ marginBottom: 16 }}>
+          <div className="form-group">
             <label className="form-label">Adresse email</label>
             <input
               className="form-input"
               type="email"
-              placeholder="vous@exemple.fr"
+              placeholder="votre@email.ch"
               value={email}
-              onChange={(e) => setEmail(e.target.value)}
+              onChange={e => setEmail(e.target.value)}
               required
-              autoFocus
+              autoComplete="email"
             />
           </div>
 
-          <div style={{ marginBottom: 24 }}>
+          <div className="form-group">
             <label className="form-label">Mot de passe</label>
             <input
               className="form-input"
               type="password"
               placeholder="••••••••"
               value={password}
-              onChange={(e) => setPassword(e.target.value)}
+              onChange={e => setPassword(e.target.value)}
               required
+              autoComplete="current-password"
             />
           </div>
 
-          {error && (
-            <div style={{ marginBottom: 16, padding: "10px 14px", background: "var(--red-50)", color: "var(--red-600)", borderRadius: "var(--radius-md)", fontSize: 13 }}>
-              {error}
-            </div>
-          )}
+          {error && <div className="login-error">{error}</div>}
 
-          <button
-            type="submit"
-            className="btn-primary"
-            style={{ width: "100%", justifyContent: "center", padding: "11px", fontSize: 14 }}
-            disabled={loading}
-          >
-            {loading ? "Connexion…" : "Se connecter"}
+          <button className="login-btn" type="submit" disabled={loading}>
+            {loading ? "Connexion en cours…" : "Se connecter"}
           </button>
         </form>
 
-        <div style={{ marginTop: 20, padding: "12px 14px", background: "var(--gray-50)", borderRadius: "var(--radius-md)", fontSize: 12, color: "var(--text-hint)" }}>
-          Compte de démo : <strong style={{ color: "var(--text-secondary)" }}>admin@veille.fr</strong> / <strong style={{ color: "var(--text-secondary)" }}>admin123</strong>
+        <div className="login-demo">
+          Compte de démo : <strong>admin@veille.fr</strong> / <strong>admin123</strong>
         </div>
       </div>
     </div>
