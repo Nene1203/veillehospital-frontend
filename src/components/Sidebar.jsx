@@ -1,5 +1,4 @@
 import { useContext } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
 import { AuthContext } from "../context/AuthContext";
 
 const HexLogo = () => (
@@ -42,23 +41,23 @@ const IconLogout = () => (
   </svg>
 );
 
-export default function Sidebar() {
-  const { user, logout } = useContext(AuthContext);
-  const navigate = useNavigate();
-  const location = useLocation();
+export default function Sidebar({ currentPage, onNavigate, user, onLogout }) {
+  const auth = useContext(AuthContext);
+  const currentUser = user || auth?.user;
+  const handleLogout = onLogout || auth?.logout;
 
-  const initials = user?.prenom && user?.nom
-    ? `${user.prenom[0]}${user.nom[0]}`.toUpperCase()
-    : user?.email?.slice(0, 2).toUpperCase() || "SA";
+  const initials = currentUser?.prenom && currentUser?.nom
+    ? `${currentUser.prenom[0]}${currentUser.nom[0]}`.toUpperCase()
+    : currentUser?.email?.slice(0, 2).toUpperCase() || "SA";
 
   const navItems = [
-    { path: "/", label: "Accueil", icon: <IconHome /> },
-    { path: "/dashboard", label: "Dashboard", icon: <IconDashboard />, dot: true },
-    { path: "/saisie", label: "Nouvelle saisie", icon: <IconEdit /> },
+    { page: "accueil",   label: "Accueil",        icon: <IconHome /> },
+    { page: "dashboard", label: "Dashboard",       icon: <IconDashboard />, dot: true },
+    { page: "saisie",    label: "Nouvelle saisie", icon: <IconEdit /> },
   ];
 
   const adminItems = [
-    { path: "/campagnes", label: "Campagnes", icon: <IconClipboard />, badge: "Admin" },
+    { page: "campagnes", label: "Campagnes", icon: <IconClipboard />, badge: "Admin" },
   ];
 
   return (
@@ -78,22 +77,22 @@ export default function Sidebar() {
         <div className="nav-section-label">Navigation</div>
         {navItems.map(item => (
           <div
-            key={item.path}
-            className={`nav-item ${location.pathname === item.path ? "active" : ""}`}
-            onClick={() => navigate(item.path)}
+            key={item.page}
+            className={`nav-item ${currentPage === item.page ? "active" : ""}`}
+            onClick={() => onNavigate(item.page)}
           >
             {item.icon}
             {item.label}
-            {item.dot && location.pathname === item.path && <span className="nav-dot" />}
+            {item.dot && currentPage === item.page && <span className="nav-dot" />}
           </div>
         ))}
 
         <div className="nav-section-label" style={{ marginTop: 16 }}>Administration</div>
         {adminItems.map(item => (
           <div
-            key={item.path}
-            className={`nav-item ${location.pathname === item.path ? "active" : ""}`}
-            onClick={() => navigate(item.path)}
+            key={item.page}
+            className={`nav-item ${currentPage === item.page ? "active" : ""}`}
+            onClick={() => onNavigate(item.page)}
           >
             {item.icon}
             {item.label}
@@ -106,13 +105,13 @@ export default function Sidebar() {
         <div className="sidebar-avatar">{initials}</div>
         <div style={{ flex: 1 }}>
           <div className="sidebar-user-name">
-            {user?.prenom ? `${user.prenom} ${user.nom}` : "Super Admin"}
+            {currentUser?.prenom ? `${currentUser.prenom} ${currentUser.nom}` : "Super Admin"}
           </div>
           <div className="sidebar-user-role">
-            {user?.role === "admin" ? "Administrateur" : "Utilisateur"}
+            {currentUser?.role === "admin" ? "Administrateur" : "Utilisateur"}
           </div>
         </div>
-        <IconLogout onClick={logout} title="Se déconnecter" />
+        <IconLogout onClick={handleLogout} title="Se déconnecter" />
       </div>
     </aside>
   );
