@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from "react";
+import { BoutonExport } from "./ExportPDF";
 import {
   getKpis, getParEtablissement, getParPathologie, getEvolution,
   getEtablissements, getAnneesDisponibles, getMoisDisponibles,
@@ -324,6 +325,18 @@ export default function Dashboard(){
         <div>
           <div className="page-title">Dashboard</div>
           <div className="page-subtitle">{periodLabel()}</div>
+        </div>
+        <div style={{display:"flex",alignItems:"center",gap:10}}>
+          <BoutonExport
+            kpis={kpis}
+            etabStats={etabStats}
+            pathoStats={pathoStats}
+            evolution={evolution}
+            activeKpiConfig={activeKpi}
+            periodLabel={periodLabel()}
+            etablissements={etablissements}
+            selectedEtabs={selectedEtabs}
+          />
         </div>
         <div className="filters-bar">
           <EtabMultiSelect etablissements={etablissements} selected={selectedEtabs} onChange={setSelectedEtabs}/>
