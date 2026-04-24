@@ -56,6 +56,7 @@ export default function Sidebar({ currentPage, onNavigate, user, onLogout }) {
     { page: "saisie",    label: "Nouvelle saisie", icon: <IconEdit /> },
     { page: "carte",     label: "Carte du réseau", icon: <IconHome /> },
     { page: "comparaison", label: "Comparaison établissements", icon: <IconDashboard /> },
+    { page: "alertes", label: "Alertes & Anomalies", icon: <IconDashboard /> },
   ];
 
   const adminItems = [

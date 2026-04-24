@@ -8,6 +8,8 @@ import Login from "./pages/Login";
 import "./styles.css";
 import CarteVaud from "./pages/CarteVaud";
 import ComparaisonEtabs from "./pages/ComparaisonEtabs";
+import Alertes from "./pages/Alertes";
+
 
 function AppContent() {
   const { user, loading, logout } = useAuth();
@@ -32,6 +34,7 @@ function AppContent() {
     if (page === "saisie") return <Saisie />;
     if (page === "carte") return <CarteVaud />;
     if (page === "comparaison") return <ComparaisonEtabs />;
+    if (page === "alertes") return <Alertes onNavigate={setPage} />;
     return <Accueil onNavigate={setPage} />;
   };
 
