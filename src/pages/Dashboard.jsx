@@ -4,18 +4,33 @@ import {
   getEtablissements, getAnneesDisponibles, getMoisDisponibles,
   getSemainesDisponibles, getJoursDisponibles
 } from "../data/api";
-import { COULEURS_GRAPHIQUES } from "../data/mockData";
 
-function KpiCard({ label, value }) {
-  return (
-    <div className="kpi-card">
-      <div className="kpi-label">{label}</div>
-      <div className="kpi-value">{value ?? "—"}</div>
-    </div>
-  );
-}
+// ─── Couleurs HévivA ─────────────────────
+const COLORS = {
+  teal:   "#00A89D",
+  lime:   "#8DC63F",
+  gray:   "#ADB5BD",
+  teal2:  "#009990",
+  lime2:  "#6A9A2A",
+  blue:   "#3B82F6",
+  amber:  "#F59E0B",
+};
+const PATHO_COLORS = [COLORS.teal, COLORS.lime, COLORS.gray, COLORS.blue, COLORS.amber, "#E2E8F0"];
 
-function BarChart({ canvasId, labels, data, color, label }) {
+// ─── Config KPIs cliquables ──────────────
+const KPI_CONFIG = [
+  { key: "total_hospitalisations", label: "Hospitalisations",   unit: "",  accent: "teal", badge: "Période sélectionnée", color: COLORS.teal,  evoKey: "hospitalisations" },
+  { key: "duree_moyenne_sejour",   label: "Durée moy. séjour",  unit: "j", accent: "lime",                                color: COLORS.lime,  evoKey: "duree_moyenne" },
+  { key: "attente_moyenne_avant_op",label:"Attente avant op.",  unit: "j", accent: "teal",                                color: COLORS.teal,  evoKey: "attente_moyenne" },
+  { key: "taux_remplissage_moyen", label: "Taux de remplissage",unit: "%", accent: "lime",                                color: COLORS.lime,  evoKey: "taux_remplissage" },
+  { key: "total_sortis",           label: "Patients sortis",    unit: "",  accent: "teal",                                color: COLORS.teal,  evoKey: "sortis" },
+  { key: "total_presents",         label: "Patients présents",  unit: "",  accent: "gray",                                color: COLORS.gray,  evoKey: "presents" },
+  { key: "total_transferts",       label: "Transferts",         unit: "",  accent: "gray",                                color: COLORS.amber, evoKey: "transferts" },
+  { key: "total_rehospitalisations",label:"Réhospitalisations", unit: "",  accent: "gray",                                color: "#6366F1",    evoKey: "rehospitalisations" },
+];
+
+// ─── Charts ──────────────────────────────
+function BarChart({ canvasId, labels, data, color }) {
   const ref = useRef(null);
   const chartRef = useRef(null);
   useEffect(() => {
@@ -23,27 +38,83 @@ function BarChart({ canvasId, labels, data, color, label }) {
     if (chartRef.current) chartRef.current.destroy();
     chartRef.current = new window.Chart(ref.current, {
       type: "bar",
-      data: { labels, datasets: [{ label, data, backgroundColor: color + "55", borderColor: color, borderWidth: 1.5, borderRadius: 5 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: "#F3F4F6" } }, x: { ticks: { font: { size: 10 }, autoSkip: false, maxRotation: 45 }, grid: { display: false } } } },
+      data: {
+        labels,
+        datasets: [{
+          data,
+          backgroundColor: color + "30",
+          borderColor: color,
+          borderWidth: 1.5,
+          borderRadius: 4,
+          borderSkipped: false,
+        }]
+      },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        scales: {
+          y: { beginAtZero: true, ticks: { font: { size: 10 }, color: "#ADB5BD" }, grid: { color: "#F1F3F5" } },
+          x: { ticks: { font: { size: 10 }, color: "#ADB5BD", maxRotation: 45, autoSkip: false }, grid: { display: false } }
+        }
+      }
     });
     return () => chartRef.current?.destroy();
   }, [JSON.stringify(labels), JSON.stringify(data)]);
   return <canvas ref={ref} id={canvasId} />;
 }
 
-function LineChart({ canvasId, labels, data, color }) {
+function LineChart({ canvasId, labels, data, color, label2, data2, color2 }) {
   const ref = useRef(null);
   const chartRef = useRef(null);
   useEffect(() => {
     if (!ref.current || !window.Chart) return;
     if (chartRef.current) chartRef.current.destroy();
+    const datasets = [{
+      label: label2 ? "Période actuelle" : undefined,
+      data,
+      borderColor: color,
+      backgroundColor: color + "15",
+      borderWidth: 2,
+      pointRadius: 4,
+      pointBackgroundColor: "#FFFFFF",
+      pointBorderColor: color,
+      pointBorderWidth: 2,
+      fill: true,
+      tension: 0.35,
+    }];
+    if (label2 && data2) {
+      datasets.push({
+        label: label2,
+        data: data2,
+        borderColor: color2 || "#ADB5BD",
+        backgroundColor: (color2 || "#ADB5BD") + "10",
+        borderWidth: 2,
+        borderDash: [5, 4],
+        pointRadius: 3,
+        pointBackgroundColor: "#FFFFFF",
+        pointBorderColor: color2 || "#ADB5BD",
+        pointBorderWidth: 2,
+        fill: false,
+        tension: 0.35,
+      });
+    }
     chartRef.current = new window.Chart(ref.current, {
       type: "line",
-      data: { labels, datasets: [{ data, borderColor: color, backgroundColor: color + "18", borderWidth: 2, pointRadius: 4, pointBackgroundColor: color, fill: true, tension: 0.35 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, scales: { y: { beginAtZero: true, ticks: { font: { size: 10 } }, grid: { color: "#F3F4F6" } }, x: { ticks: { font: { size: 10 }, autoSkip: false, maxRotation: 45 }, grid: { display: false } } } },
+      data: { labels, datasets },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: {
+          legend: { display: !!label2, position: "top",
+            labels: { font: { size: 11 }, boxWidth: 16, padding: 12 } },
+        },
+        scales: {
+          y: { beginAtZero: true, ticks: { font: { size: 10 }, color: "#ADB5BD" }, grid: { color: "#F1F3F5" } },
+          x: { ticks: { font: { size: 10 }, color: "#ADB5BD", maxRotation: 45, autoSkip: false }, grid: { display: false } }
+        }
+      }
     });
     return () => chartRef.current?.destroy();
-  }, [JSON.stringify(labels), JSON.stringify(data)]);
+  }, [JSON.stringify(labels), JSON.stringify(data), JSON.stringify(data2)]);
   return <canvas ref={ref} id={canvasId} />;
 }
 
@@ -55,110 +126,49 @@ function DoughnutChart({ canvasId, labels, data, colors }) {
     if (chartRef.current) chartRef.current.destroy();
     chartRef.current = new window.Chart(ref.current, {
       type: "doughnut",
-      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 6 }] },
-      options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { display: false } }, cutout: "62%" },
+      data: { labels, datasets: [{ data, backgroundColor: colors, borderWidth: 0, hoverOffset: 4 }] },
+      options: {
+        responsive: true, maintainAspectRatio: false,
+        plugins: { legend: { display: false } },
+        cutout: "65%",
+      }
     });
     return () => chartRef.current?.destroy();
   }, [JSON.stringify(data)]);
   return <canvas ref={ref} id={canvasId} />;
 }
 
-const PATHO_COLORS = [
-  COULEURS_GRAPHIQUES.blue, COULEURS_GRAPHIQUES.teal, COULEURS_GRAPHIQUES.coral,
-  COULEURS_GRAPHIQUES.purple, COULEURS_GRAPHIQUES.amber, COULEURS_GRAPHIQUES.gray
-];
-
-// ─── Multi-select établissements ─────────────────────────────
+// ─── Multi-select établissements ─────────
 function EtabMultiSelect({ etablissements, selected, onChange }) {
   const [open, setOpen] = useState(false);
   const ref = useRef(null);
-
   useEffect(() => {
     const handler = (e) => { if (ref.current && !ref.current.contains(e.target)) setOpen(false); };
     document.addEventListener("mousedown", handler);
     return () => document.removeEventListener("mousedown", handler);
   }, []);
-
-  const toggleAll = () => {
-    if (selected.length === etablissements.length) onChange([]);
-    else onChange(etablissements.map(e => e.id));
-  };
-
-  const toggle = (id) => {
-    if (selected.includes(id)) onChange(selected.filter(s => s !== id));
-    else onChange([...selected, id]);
-  };
-
-  const label = selected.length === 0 || selected.length === etablissements.length
-    ? "Tous les établissements"
-    : `${selected.length} établissement${selected.length > 1 ? "s" : ""} sélectionné${selected.length > 1 ? "s" : ""}`;
-
+  const isAll = selected.length === 0 || selected.length === etablissements.length;
+  const label = isAll ? "Tous les établissements" : `${selected.length} établissement${selected.length > 1 ? "s" : ""} sélectionné${selected.length > 1 ? "s" : ""}`;
+  const toggleAll = () => onChange(isAll ? etablissements.map(e => e.id) : []);
+  const toggle = (id) => onChange(selected.includes(id) ? selected.filter(s => s !== id) : [...selected, id]);
   return (
-    <div ref={ref} style={{ position: "relative" }}>
-      <button
-        onClick={() => setOpen(!open)}
-        style={{
-          fontSize: 12, padding: "7px 12px", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-md)", background: "var(--surface)",
-          color: "var(--text-primary)", fontFamily: "var(--font)", cursor: "pointer",
-          display: "flex", alignItems: "center", gap: 6, minWidth: 200,
-          outline: "none",
-        }}
-      >
+    <div ref={ref} className="etab-multiselect">
+      <button className="etab-multiselect-btn" onClick={() => setOpen(!open)} type="button">
         <span style={{ flex: 1, textAlign: "left" }}>{label}</span>
         <svg width="12" height="12" viewBox="0 0 12 12" fill="none" stroke="currentColor" strokeWidth="1.5">
           <path d="M2 4l4 4 4-4" />
         </svg>
       </button>
-
       {open && (
-        <div style={{
-          position: "absolute", top: "calc(100% + 4px)", left: 0, zIndex: 100,
-          background: "var(--surface)", border: "1px solid var(--border)",
-          borderRadius: "var(--radius-lg)", minWidth: 280, maxHeight: 320,
-          overflowY: "auto", boxShadow: "0 4px 16px rgba(0,0,0,0.08)",
-        }}>
-          {/* Tout sélectionner */}
-          <div
-            onClick={toggleAll}
-            style={{
-              padding: "10px 14px", fontSize: 12, fontWeight: 600,
-              color: "var(--blue-600)", cursor: "pointer", borderBottom: "1px solid var(--border-light)",
-              display: "flex", alignItems: "center", gap: 8,
-            }}
-            onMouseEnter={e => e.currentTarget.style.background = "var(--gray-50)"}
-            onMouseLeave={e => e.currentTarget.style.background = ""}
-          >
-            <input
-              type="checkbox"
-              readOnly
-              checked={selected.length === etablissements.length}
-              style={{ accentColor: "var(--blue-600)", cursor: "pointer" }}
-            />
+        <div className="etab-dropdown">
+          <div className="etab-dropdown-all" onClick={toggleAll}>
+            <input type="checkbox" readOnly checked={isAll} />
             Tous les établissements
           </div>
-
-          {/* Liste des établissements */}
           {etablissements.map(e => (
-            <div
-              key={e.id}
-              onClick={() => toggle(e.id)}
-              style={{
-                padding: "8px 14px", fontSize: 12, cursor: "pointer",
-                display: "flex", alignItems: "center", gap: 8,
-                color: "var(--text-primary)",
-                borderBottom: "0.5px solid var(--border-light)",
-              }}
-              onMouseEnter={ev => ev.currentTarget.style.background = "var(--gray-50)"}
-              onMouseLeave={ev => ev.currentTarget.style.background = ""}
-            >
-              <input
-                type="checkbox"
-                readOnly
-                checked={selected.includes(e.id)}
-                style={{ accentColor: "var(--blue-600)", cursor: "pointer", flexShrink: 0 }}
-              />
-              <span style={{ lineHeight: 1.3 }}>{e.nom}</span>
+            <div key={e.id} className="etab-dropdown-item" onClick={() => toggle(e.id)}>
+              <input type="checkbox" readOnly checked={selected.includes(e.id)} />
+              <span>{e.nom}</span>
             </div>
           ))}
         </div>
@@ -167,37 +177,73 @@ function EtabMultiSelect({ etablissements, selected, onChange }) {
   );
 }
 
+// ─── KPI Card cliquable ───────────────────
+function KpiCard({ label, value, unit, accent = "teal", badge, selected, onClick }) {
+  return (
+    <div
+      className={`kpi-card kpi-${accent}`}
+      onClick={onClick}
+      style={{
+        cursor: "pointer",
+        outline: selected ? `2.5px solid ${accent === "teal" ? COLORS.teal : accent === "lime" ? COLORS.lime : COLORS.gray}` : "none",
+        outlineOffset: 2,
+        transform: selected ? "translateY(-2px)" : "none",
+        boxShadow: selected ? "0 4px 16px rgba(0,168,157,0.18)" : undefined,
+        transition: "all 0.15s ease",
+        position: "relative",
+      }}
+    >
+      {selected && (
+        <div style={{
+          position: "absolute", top: 8, right: 8,
+          width: 8, height: 8, borderRadius: "50%",
+          background: accent === "lime" ? COLORS.lime : COLORS.teal,
+        }} />
+      )}
+      <div className="kpi-label">{label}</div>
+      <div className="kpi-value">
+        {value ?? "—"}
+        {unit && <span style={{ fontSize: 14, fontWeight: 400, color: "#ADB5BD", marginLeft: 2 }}>{unit}</span>}
+      </div>
+      {badge && <div className="kpi-badge">{badge}</div>}
+      {selected && (
+        <div style={{ fontSize: 10, color: accent === "lime" ? COLORS.lime : COLORS.teal,
+          marginTop: 4, fontWeight: 600 }}>
+          ↓ Courbe affichée
+        </div>
+      )}
+    </div>
+  );
+}
+
+// ─── Dashboard principal ──────────────────
 export default function Dashboard() {
   const [etablissements, setEtablissements] = useState([]);
-  const [selectedEtabs, setSelectedEtabs] = useState([]); // [] = tous
+  const [selectedEtabs, setSelectedEtabs] = useState([]);
+  const [selectedKpi, setSelectedKpi] = useState("total_hospitalisations");
 
-  // Filtres cascade
   const [annees, setAnnees] = useState([]);
   const [moisList, setMoisList] = useState([]);
   const [semainesList, setSemainesList] = useState([]);
   const [joursList, setJoursList] = useState([]);
-  const [annee, setAnnee] = useState(""); // "" = toutes les années
+  const [annee, setAnnee] = useState("");
   const [mois, setMois] = useState("");
   const [semaine, setSemaine] = useState("");
   const [jour, setJour] = useState("");
 
-  // Données
   const [kpis, setKpis] = useState(null);
   const [etabStats, setEtabStats] = useState([]);
   const [pathoStats, setPathoStats] = useState([]);
   const [evolution, setEvolution] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  // Chargement initial
   useEffect(() => {
     Promise.all([getEtablissements(), getAnneesDisponibles()]).then(([etabs, ans]) => {
       setEtablissements(etabs);
       setAnnees(ans);
-      // Pas de sélection d'année par défaut → toutes les années
     });
   }, []);
 
-  // Quand annee change → charger les mois
   useEffect(() => {
     setMois(""); setMoisList([]);
     setSemaine(""); setSemainesList([]);
@@ -206,7 +252,6 @@ export default function Dashboard() {
     getMoisDisponibles({ annee }).then(setMoisList);
   }, [annee]);
 
-  // Quand mois change → charger les semaines
   useEffect(() => {
     setSemaine(""); setSemainesList([]);
     setJour(""); setJoursList([]);
@@ -214,259 +259,291 @@ export default function Dashboard() {
     getSemainesDisponibles({ annee, mois }).then(setSemainesList);
   }, [mois, annee]);
 
-  // Quand semaine change → charger les jours
   useEffect(() => {
     setJour(""); setJoursList([]);
     if (!annee || !semaine) return;
     getJoursDisponibles({ annee, ...(mois && { mois }), semaine }).then(setJoursList);
   }, [semaine, mois, annee]);
 
-  // Rechargement des données
   useEffect(() => {
     setLoading(true);
-    const baseParams = {};
-    if (annee) baseParams.annee = annee;
-    if (mois) baseParams.mois = mois;
-    if (semaine) baseParams.semaine = semaine;
-    if (jour) baseParams.jour = jour;
+    const base = {};
+    if (annee) base.annee = annee;
+    if (mois) base.mois = mois;
+    if (semaine) base.semaine = semaine;
+    if (jour) base.jour = jour;
 
-    // Si des établissements sont sélectionnés, on fait N requêtes et on agrège
     const etabsToQuery = selectedEtabs.length > 0 && selectedEtabs.length < etablissements.length
-      ? selectedEtabs
-      : [null]; // null = tous
+      ? selectedEtabs : [null];
 
-    const fetchAll = etabsToQuery.map(etabId => {
-      const params = { ...baseParams };
+    Promise.all(etabsToQuery.map(etabId => {
+      const params = { ...base };
       if (etabId) params.etablissement_id = etabId;
-      return Promise.all([
-        getKpis(params),
-        getParEtablissement(params),
-        getParPathologie(params),
-        getEvolution(params),
-      ]);
-    });
-
-    Promise.all(fetchAll).then(results => {
+      return Promise.all([getKpis(params), getParEtablissement(params), getParPathologie(params), getEvolution(params)]);
+    })).then(results => {
       if (results.length === 1) {
         const [k, e, p, ev] = results[0];
         setKpis(k); setEtabStats(e); setPathoStats(p); setEvolution(ev);
       } else {
-        // Agrégation des résultats pour N établissements
         const allKpis = results.map(r => r[0]);
-        const aggregatedKpis = {
-          total_hospitalisations: allKpis.reduce((s, k) => s + (k?.total_hospitalisations || 0), 0),
-          total_sortis: allKpis.reduce((s, k) => s + (k?.total_sortis || 0), 0),
-          total_presents: allKpis.reduce((s, k) => s + (k?.total_presents || 0), 0),
-          total_transferts: allKpis.reduce((s, k) => s + (k?.total_transferts || 0), 0),
-          total_rehospitalisations: allKpis.reduce((s, k) => s + (k?.total_rehospitalisations || 0), 0),
-          duree_moyenne_sejour: (() => { const v = allKpis.map(k => k?.duree_moyenne_sejour).filter(Boolean); return v.length ? Math.round(v.reduce((a,b)=>a+b)/v.length*10)/10 : null; })(),
-          attente_moyenne_avant_op: (() => { const v = allKpis.map(k => k?.attente_moyenne_avant_op).filter(Boolean); return v.length ? Math.round(v.reduce((a,b)=>a+b)/v.length*10)/10 : null; })(),
-          taux_remplissage_moyen: (() => { const v = allKpis.map(k => k?.taux_remplissage_moyen).filter(Boolean); return v.length ? Math.round(v.reduce((a,b)=>a+b)/v.length*10)/10 : null; })(),
-        };
-        setKpis(aggregatedKpis);
-
-        // Fusionne les stats établissements
-        const allEtabStats = results.flatMap(r => r[1]);
-        setEtabStats(allEtabStats.filter(e => e.hospitalisations > 0));
-
-        // Fusionne les pathologies
-        const pathoMap = {};
-        results.forEach(r => r[2].forEach(p => {
-          pathoMap[p.pathologie] = (pathoMap[p.pathologie] || 0) + p.count;
-        }));
-        const total = Object.values(pathoMap).reduce((a,b)=>a+b, 0);
-        const mergedPatho = Object.entries(pathoMap)
-          .map(([pathologie, count]) => ({ pathologie, count, pourcentage: Math.round(count/total*100*10)/10 }))
-          .sort((a,b) => b.count - a.count);
-        setPathoStats(mergedPatho);
-
-        // Évolution : prend le premier résultat (structure identique)
+        const avg = (arr) => { const v = arr.filter(Boolean); return v.length ? Math.round(v.reduce((a,b)=>a+b)/v.length*10)/10 : null; };
+        setKpis({
+          total_hospitalisations: allKpis.reduce((s,k)=>s+(k?.total_hospitalisations||0),0),
+          total_sortis: allKpis.reduce((s,k)=>s+(k?.total_sortis||0),0),
+          total_presents: allKpis.reduce((s,k)=>s+(k?.total_presents||0),0),
+          total_transferts: allKpis.reduce((s,k)=>s+(k?.total_transferts||0),0),
+          total_rehospitalisations: allKpis.reduce((s,k)=>s+(k?.total_rehospitalisations||0),0),
+          duree_moyenne_sejour: avg(allKpis.map(k=>k?.duree_moyenne_sejour)),
+          attente_moyenne_avant_op: avg(allKpis.map(k=>k?.attente_moyenne_avant_op)),
+          taux_remplissage_moyen: avg(allKpis.map(k=>k?.taux_remplissage_moyen)),
+        });
+        setEtabStats(results.flatMap(r=>r[1]).filter(e=>e.hospitalisations>0));
+        const pm = {};
+        results.forEach(r=>r[2].forEach(p=>{pm[p.pathologie]=(pm[p.pathologie]||0)+p.count;}));
+        const tot = Object.values(pm).reduce((a,b)=>a+b,0);
+        setPathoStats(Object.entries(pm).map(([p,c])=>({pathologie:p,count:c,pourcentage:Math.round(c/tot*100*10)/10})).sort((a,b)=>b.count-a.count));
         setEvolution(results[0][3]);
       }
-    }).catch(console.error).finally(() => setLoading(false));
+    }).catch(console.error).finally(()=>setLoading(false));
   }, [annee, mois, semaine, jour, selectedEtabs, etablissements]);
 
+  // KPI sélectionné config
+  const activeKpi = KPI_CONFIG.find(k => k.key === selectedKpi) || KPI_CONFIG[0];
+
+  // Données de la courbe selon le KPI sélectionné
+  const getEvoData = () => {
+    if (!evolution.length) return [];
+    const evoKey = activeKpi.evoKey;
+    return evolution.map(e => {
+      if (evoKey === "hospitalisations") return e.value ?? e.hospitalisations ?? 0;
+      if (evoKey === "duree_moyenne")    return e.duree_moyenne ?? 0;
+      if (evoKey === "attente_moyenne")  return e.attente_moyenne ?? 0;
+      if (evoKey === "taux_remplissage") return e.taux_remplissage ?? 0;
+      if (evoKey === "sortis")           return e.sortis ?? 0;
+      if (evoKey === "presents")         return e.presents ?? 0;
+      if (evoKey === "transferts")       return e.transferts ?? 0;
+      if (evoKey === "rehospitalisations") return e.rehospitalisations ?? 0;
+      return e.value ?? 0;
+    });
+  };
+
   const periodLabel = () => {
-    const etabLabel = selectedEtabs.length > 0 && selectedEtabs.length < etablissements.length
-      ? `${selectedEtabs.length} établissement${selectedEtabs.length > 1 ? "s" : ""}`
+    const etabL = selectedEtabs.length > 0 && selectedEtabs.length < etablissements.length
+      ? `${selectedEtabs.length} établissement${selectedEtabs.length>1?"s":""}`
       : "Tous les établissements";
-    const dateLabel = jour ? `Journée du ${jour}`
+    const dateL = jour ? `Journée du ${jour}`
       : semaine ? `Semaine ${semaine}${mois ? ` · ${moisList.find(m=>String(m.numero)===mois)?.nom||""}` : ""} ${annee}`
       : mois ? `${moisList.find(m=>String(m.numero)===mois)?.nom||""} ${annee}`
-      : annee ? `Année ${annee}`
-      : "Toutes périodes";
-    return `${etabLabel} · ${dateLabel}`;
+      : annee ? `Année ${annee}` : "Toutes périodes";
+    return `${etabL} · ${dateL}`;
   };
-
-  const filterStyle = {
-    fontSize: 12, padding: "7px 12px", border: "1px solid var(--border)",
-    borderRadius: "var(--radius-md)", background: "var(--surface)",
-    color: "var(--text-primary)", fontFamily: "var(--font)", outline: "none", cursor: "pointer"
-  };
-  const filterDisabled = { ...filterStyle, opacity: 0.45, cursor: "not-allowed" };
 
   const hasFilters = selectedEtabs.length > 0 || annee || mois || semaine || jour;
+  const resetFilters = () => { setSelectedEtabs([]); setAnnee(""); setMois(""); setSemaine(""); setJour(""); };
+  const fStyle = { fontSize: 12, padding: "7px 12px", border: "1px solid #E2E8F0", borderRadius: 6, background: "#FFFFFF", color: "#495057", fontFamily: "inherit", outline: "none", cursor: "pointer" };
+  const fDisabled = { ...fStyle, opacity: 0.45, cursor: "not-allowed" };
 
   return (
-    <div>
-      {/* Header */}
-      <div style={{ padding: "18px 24px 14px", background: "var(--surface)", borderBottom: "1px solid var(--border)", display: "flex", alignItems: "flex-start", justifyContent: "space-between", flexWrap: "wrap", gap: 12 }}>
+    <>
+      <div className="page-header">
         <div>
-          <div style={{ fontSize: 18, fontWeight: 600, letterSpacing: "-0.3px" }}>Dashboard</div>
-          <div style={{ fontSize: 12, color: "var(--text-secondary)", marginTop: 2 }}>{periodLabel()}</div>
+          <div className="page-title">Dashboard</div>
+          <div className="page-subtitle">{periodLabel()}</div>
         </div>
-
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-          {/* Multi-select établissements */}
-          <EtabMultiSelect
-            etablissements={etablissements}
-            selected={selectedEtabs}
-            onChange={setSelectedEtabs}
-          />
-
-          {/* Année */}
-          <select style={filterStyle} value={annee} onChange={e => setAnnee(e.target.value)}>
+        <div className="filters-bar">
+          <EtabMultiSelect etablissements={etablissements} selected={selectedEtabs} onChange={setSelectedEtabs} />
+          <select style={fStyle} value={annee} onChange={e=>setAnnee(e.target.value)}>
             <option value="">Toutes les années</option>
-            {annees.map(a => <option key={a} value={a}>{a}</option>)}
+            {annees.map(a=><option key={a} value={a}>{a}</option>)}
           </select>
-
-          {/* Mois */}
-          <select style={annee ? filterStyle : filterDisabled} disabled={!annee} value={mois} onChange={e => setMois(e.target.value)}>
+          <select style={annee?fStyle:fDisabled} disabled={!annee} value={mois} onChange={e=>setMois(e.target.value)}>
             <option value="">Tous les mois</option>
-            {moisList.map(m => <option key={m.numero} value={m.numero}>{m.nom}</option>)}
+            {moisList.map(m=><option key={m.numero} value={m.numero}>{m.nom}</option>)}
           </select>
-
-          {/* Semaine */}
-          <select style={annee ? filterStyle : filterDisabled} disabled={!annee} value={semaine} onChange={e => setSemaine(e.target.value)}>
+          <select style={annee?fStyle:fDisabled} disabled={!annee} value={semaine} onChange={e=>setSemaine(e.target.value)}>
             <option value="">Toutes les semaines</option>
-            {semainesList.map(s => <option key={s.numero} value={s.numero}>Semaine {s.numero} ({s.debut})</option>)}
+            {semainesList.map(s=><option key={s.numero} value={s.numero}>Semaine {s.numero}</option>)}
           </select>
-
-          {/* Jour */}
-          <select style={semaine ? filterStyle : filterDisabled} disabled={!semaine} value={jour} onChange={e => setJour(e.target.value)}>
+          <select style={semaine?fStyle:fDisabled} disabled={!semaine} value={jour} onChange={e=>setJour(e.target.value)}>
             <option value="">Tous les jours</option>
-            {joursList.map(j => <option key={j} value={j}>{j}</option>)}
+            {joursList.map(j=><option key={j} value={j}>{j}</option>)}
           </select>
-
-          {/* Reset */}
-          {hasFilters && (
-            <button
-              onClick={() => { setSelectedEtabs([]); setAnnee(""); setMois(""); setSemaine(""); setJour(""); }}
-              style={{ ...filterStyle, background: "var(--gray-100)", fontWeight: 500 }}
-            >
-              Réinitialiser
-            </button>
-          )}
+          {hasFilters && <button style={{...fStyle,background:"#F1F3F5"}} onClick={resetFilters}>Réinitialiser</button>}
         </div>
       </div>
 
-      <div style={{ padding: "20px 24px", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div className="page-content">
         {loading ? (
-          <div style={{ textAlign: "center", padding: "60px 0", color: "var(--text-hint)", fontSize: 14 }}>Chargement…</div>
+          <div className="loading-wrap">
+            <div className="spinner" />
+            Chargement des données…
+          </div>
         ) : (
           <>
-            <div className="kpi-grid">
-              <KpiCard label="Hospitalisations" value={kpis?.total_hospitalisations} />
-              <KpiCard label="Durée moy. séjour" value={kpis?.duree_moyenne_sejour ? `${kpis.duree_moyenne_sejour}j` : "—"} />
-              <KpiCard label="Attente avant op." value={kpis?.attente_moyenne_avant_op ? `${kpis.attente_moyenne_avant_op}j` : "—"} />
-              <KpiCard label="Taux de remplissage" value={kpis?.taux_remplissage_moyen ? `${kpis.taux_remplissage_moyen}%` : "—"} />
-            </div>
-            <div className="kpi-grid">
-              <KpiCard label="Patients sortis" value={kpis?.total_sortis} />
-              <KpiCard label="Patients présents" value={kpis?.total_presents} />
-              <KpiCard label="Transferts" value={kpis?.total_transferts} />
-              <KpiCard label="Réhospitalisations" value={kpis?.total_rehospitalisations} />
+            {/* Hint cliquable */}
+            <div style={{ fontSize: 11, color: "#ADB5BD", marginBottom: 8, display: "flex",
+              alignItems: "center", gap: 6 }}>
+              <svg width="13" height="13" viewBox="0 0 13 13" fill="none">
+                <circle cx="6.5" cy="6.5" r="6" stroke="#ADB5BD" strokeWidth="1"/>
+                <text x="6.5" y="10" textAnchor="middle" fontSize="8" fill="#ADB5BD">i</text>
+              </svg>
+              Cliquez sur un indicateur pour afficher sa courbe d'évolution
             </div>
 
-            {/* Évolution + pathologies */}
-            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 16 }}>
-              <div className="card">
-                <div className="card-title">Évolution des hospitalisations</div>
-                <div style={{ position: "relative", height: 200 }}>
+            {/* Ligne 1 KPIs */}
+            <div className="kpi-grid">
+              {KPI_CONFIG.slice(0, 4).map(k => (
+                <KpiCard
+                  key={k.key}
+                  label={k.label}
+                  value={kpis?.[k.key]?.toLocaleString?.("fr-CH") ?? kpis?.[k.key]}
+                  unit={k.unit}
+                  accent={k.accent}
+                  badge={k.badge}
+                  selected={selectedKpi === k.key}
+                  onClick={() => setSelectedKpi(k.key)}
+                />
+              ))}
+            </div>
+
+            {/* Ligne 2 KPIs */}
+            <div className="kpi-grid">
+              {KPI_CONFIG.slice(4, 8).map(k => (
+                <KpiCard
+                  key={k.key}
+                  label={k.label}
+                  value={kpis?.[k.key]?.toLocaleString?.("fr-CH") ?? kpis?.[k.key]}
+                  unit={k.unit}
+                  accent={k.accent}
+                  selected={selectedKpi === k.key}
+                  onClick={() => setSelectedKpi(k.key)}
+                />
+              ))}
+            </div>
+
+            {/* Graphique évolution KPI sélectionné */}
+            <div style={{ display: "grid", gridTemplateColumns: "minmax(0,2fr) minmax(0,1fr)", gap: 14 }}>
+              <div className="card" style={{ borderTop: `3px solid ${activeKpi.color}` }}>
+                <div className="card-header">
+                  <div className="card-title">
+                    Évolution — {activeKpi.label}
+                    {activeKpi.unit && (
+                      <span style={{ fontSize: 11, color: "#ADB5BD", marginLeft: 6,
+                        fontWeight: 400 }}>
+                        ({activeKpi.unit})
+                      </span>
+                    )}
+                  </div>
+                  {annee && <span className="card-tag">{annee}</span>}
+                </div>
+                <div className="card-body" style={{ height: 200 }}>
                   <LineChart
-                    canvasId={`evo-${annee}-${mois}-${semaine}-${selectedEtabs.join("")}`}
+                    canvasId={`evo-${selectedKpi}-${annee}-${mois}-${semaine}`}
                     labels={evolution.map(e => e.label)}
-                    data={evolution.map(e => e.value)}
-                    color={COULEURS_GRAPHIQUES.blue}
+                    data={getEvoData()}
+                    color={activeKpi.color}
                   />
                 </div>
               </div>
+
               <div className="card">
-                <div className="card-title">Répartition par pathologie</div>
-                <div style={{ position: "relative", height: 150 }}>
-                  <DoughnutChart
-                    canvasId={`donut-${annee}-${mois}-${selectedEtabs.join("")}`}
-                    labels={pathoStats.map(p => p.pathologie)}
-                    data={pathoStats.map(p => p.count)}
-                    colors={PATHO_COLORS.slice(0, pathoStats.length)}
-                  />
+                <div className="card-header">
+                  <div className="card-title">Répartition par pathologie</div>
                 </div>
-                <div className="legend" style={{ marginTop: 8 }}>
-                  {pathoStats.slice(0, 5).map((p, i) => (
-                    <span key={p.pathologie} className="legend-item">
-                      <span className="legend-dot" style={{ background: PATHO_COLORS[i] }} />
-                      {p.pathologie} {p.pourcentage}%
-                    </span>
-                  ))}
+                <div className="card-body">
+                  <div style={{ height: 140 }}>
+                    <DoughnutChart
+                      canvasId={`donut-${annee}-${mois}`}
+                      labels={pathoStats.map(p=>p.pathologie)}
+                      data={pathoStats.map(p=>p.count)}
+                      colors={PATHO_COLORS.slice(0,pathoStats.length)}
+                    />
+                  </div>
+                  <div className="legend" style={{ marginTop: 10 }}>
+                    {pathoStats.slice(0,5).map((p,i)=>(
+                      <span key={p.pathologie} className="legend-item">
+                        <span className="legend-dot" style={{ background: PATHO_COLORS[i] }} />
+                        {p.pathologie} <span style={{ color: "#ADB5BD" }}>{p.pourcentage}%</span>
+                      </span>
+                    ))}
+                  </div>
                 </div>
               </div>
             </div>
 
-            {/* Graphiques barres */}
+            {/* Graphiques par établissement */}
             {etabStats.length > 0 && (
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, minmax(0,1fr))", gap: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2,minmax(0,1fr))", gap: 14 }}>
                 <div className="card">
-                  <div className="card-title">Hospitalisations par établissement</div>
-                  <div style={{ position: "relative", height: Math.max(180, etabStats.length * 22 + 60) }}>
+                  <div className="card-header"><div className="card-title">Hospitalisations par établissement</div></div>
+                  <div className="card-body" style={{ height: 200 }}>
                     <BarChart
-                      canvasId={`bar-etab-${annee}-${selectedEtabs.join("")}`}
-                      labels={etabStats.map(e => e.etablissement_nom.split(" ").slice(-1)[0])}
-                      data={etabStats.map(e => e.hospitalisations)}
-                      color={COULEURS_GRAPHIQUES.blue}
-                      label="Hospit."
+                      canvasId={`bar-etab-${annee}`}
+                      labels={etabStats.map(e=>e.etablissement_nom.split(" ").slice(-1)[0])}
+                      data={etabStats.map(e=>e.hospitalisations)}
+                      color={COLORS.teal}
                     />
                   </div>
                 </div>
                 <div className="card">
-                  <div className="card-title">Durée moy. séjour par établissement (j)</div>
-                  <div style={{ position: "relative", height: Math.max(180, etabStats.length * 22 + 60) }}>
+                  <div className="card-header"><div className="card-title">Durée moy. séjour par établissement (j)</div></div>
+                  <div className="card-body" style={{ height: 200 }}>
                     <BarChart
-                      canvasId={`bar-duree-${annee}-${selectedEtabs.join("")}`}
-                      labels={etabStats.map(e => e.etablissement_nom.split(" ").slice(-1)[0])}
-                      data={etabStats.map(e => e.duree_moyenne ?? 0)}
-                      color={COULEURS_GRAPHIQUES.teal}
-                      label="Durée (j)"
+                      canvasId={`bar-duree-${annee}`}
+                      labels={etabStats.map(e=>e.etablissement_nom.split(" ").slice(-1)[0])}
+                      data={etabStats.map(e=>e.duree_moyenne??0)}
+                      color={COLORS.lime}
                     />
                   </div>
                 </div>
               </div>
             )}
 
-            {/* Tableau */}
-            <div style={{ background: "var(--surface)", border: "1px solid var(--border)", borderRadius: "var(--radius-lg)", overflow: "hidden" }}>
-              <div style={{ padding: "14px 18px", borderBottom: "1px solid var(--border)" }}>
-                <div style={{ fontSize: 11, fontWeight: 600, color: "var(--text-secondary)", textTransform: "uppercase", letterSpacing: ".07em" }}>
-                  Détail par établissement {selectedEtabs.length > 0 && selectedEtabs.length < etablissements.length ? `(${selectedEtabs.length} sélectionnés)` : ""}
-                </div>
+            {/* Tableau détail */}
+            <div className="card">
+              <div className="card-header">
+                <div className="card-title">Détail par établissement</div>
+                <span style={{ fontSize: 11, color: "#ADB5BD" }}>
+                  {etabStats.filter(e=>e.hospitalisations>0).length} établissements
+                </span>
               </div>
               {etabStats.length === 0 ? (
-                <div style={{ padding: 24, fontSize: 13, color: "var(--text-hint)", textAlign: "center" }}>Aucune donnée pour cette sélection.</div>
+                <div className="empty-state">Aucune donnée pour cette sélection.</div>
               ) : (
                 <div className="table-wrap">
                   <table>
-                    <thead><tr>
-                      <th>Établissement</th><th>Hospit.</th><th>Durée moy.</th>
-                      <th>Attente op.</th><th>Taux rempl.</th><th>Sortis</th>
-                      <th>Transferts</th><th>Réhospit.</th>
-                    </tr></thead>
+                    <thead>
+                      <tr>
+                        <th>Établissement</th>
+                        <th>Hospit.</th>
+                        <th>Durée moy.</th>
+                        <th>Attente op.</th>
+                        <th>Taux rempl.</th>
+                        <th>Sortis</th>
+                        <th>Transferts</th>
+                        <th>Réhospit.</th>
+                      </tr>
+                    </thead>
                     <tbody>
-                      {etabStats.map(e => (
+                      {etabStats.map(e=>(
                         <tr key={e.etablissement_id}>
-                          <td style={{ fontWeight: 500 }}>{e.etablissement_nom}</td>
-                          <td style={{ fontFamily: "var(--font-mono)" }}>{e.hospitalisations}</td>
+                          <td>{e.etablissement_nom}</td>
+                          <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--teal)" }}>
+                            {e.hospitalisations.toLocaleString("fr-CH")}
+                          </td>
                           <td>{e.duree_moyenne ? `${e.duree_moyenne}j` : "—"}</td>
                           <td>{e.attente_moyenne ? `${e.attente_moyenne}j` : "—"}</td>
-                          <td>{e.taux_remplissage ? `${e.taux_remplissage}%` : "—"}</td>
+                          <td>
+                            {e.taux_remplissage ? (
+                              <span style={{
+                                background: e.taux_remplissage > 90 ? "#FEF2F2" : "var(--teal-light)",
+                                color: e.taux_remplissage > 90 ? "#DC2626" : "var(--teal-dark)",
+                                padding: "2px 7px", borderRadius: 4, fontSize: 11, fontWeight: 500
+                              }}>
+                                {e.taux_remplissage}%
+                              </span>
+                            ) : "—"}
+                          </td>
                           <td>{e.sortis}</td>
                           <td>{e.transferts}</td>
                           <td>{e.rehospitalisations}</td>
@@ -480,6 +557,6 @@ export default function Dashboard() {
           </>
         )}
       </div>
-    </div>
+    </>
   );
 }

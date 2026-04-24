@@ -326,8 +326,8 @@ body {
   position: absolute;
   top: calc(100% + 4px);
   left: 0;
-  z-index: 200;
-  background: var(--white);
+  z-index: 9999;
+  background: #FFFFFF !important;
   border: 1px solid var(--border);
   border-radius: var(--radius-md);
   min-width: 300px;
