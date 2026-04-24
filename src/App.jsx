@@ -7,6 +7,7 @@ import Saisie from "./pages/Saisie";
 import Login from "./pages/Login";
 import "./styles.css";
 import CarteVaud from "./pages/CarteVaud";
+import ComparaisonEtabs from "./pages/ComparaisonEtabs";
 
 function AppContent() {
   const { user, loading, logout } = useAuth();
@@ -30,6 +31,7 @@ function AppContent() {
     if (page === "dashboard") return <Dashboard />;
     if (page === "saisie") return <Saisie />;
     if (page === "carte") return <CarteVaud />;
+    if (page === "comparaison") return <ComparaisonEtabs />;
     return <Accueil onNavigate={setPage} />;
   };
 
