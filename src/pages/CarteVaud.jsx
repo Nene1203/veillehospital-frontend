@@ -86,6 +86,7 @@ export default function CarteVaud() {
   const [filter, setFilter] = useState("TOUS");
   const [loading, setLoading] = useState(true);
   const [stats, setStats] = useState({ rouge: 0, orange: 0, vert: 0, lime: 0 });
+  const [mapReady, setMapReady] = useState(false);
 
   // Charger les établissements
   useEffect(() => {
@@ -143,6 +144,7 @@ export default function CarteVaud() {
       }).addTo(map);
 
       mapInstanceRef.current = map;
+      setMapReady(true);
     };
     document.head.appendChild(script);
 
@@ -156,7 +158,7 @@ export default function CarteVaud() {
 
   // Mettre à jour les marqueurs quand les données changent
   useEffect(() => {
-    if (!mapInstanceRef.current || etablissements.length === 0) return;
+    if (!mapReady || !mapInstanceRef.current || etablissements.length === 0) return;
     const L = window.L;
     if (!L) return;
 
@@ -220,7 +222,7 @@ export default function CarteVaud() {
 
       markersRef.current.push(marker);
     });
-  }, [etablissements, filter, mapInstanceRef.current]);
+  }, [etablissements, filter, mapReady]);
 
   const types = ["TOUS", "EMS", "CAT", "EPSM", "LOG", "RES", "FON"];
 
