@@ -863,3 +863,28 @@ tr:hover td { background: var(--gray-50); }
   .main-content { margin-left: 0; }
   .kpi-grid { grid-template-columns: repeat(2, 1fr); }
 }
+
+/* ── Fix dropdown établissements ── */
+.etab-dropdown {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 9999;
+  background: #FFFFFF !important;
+  border: 1px solid #E2E8F0;
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  min-width: 280px;
+  max-height: 300px;
+  overflow-y: auto;
+}
+
+/* ── KPI cards cliquables ── */
+.kpi-card {
+  cursor: pointer;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+.kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 16px rgba(0,168,157,0.15);
+}
