@@ -6,6 +6,7 @@ import Dashboard from "./pages/Dashboard";
 import Saisie from "./pages/Saisie";
 import Login from "./pages/Login";
 import "./styles.css";
+import CarteVaud from "./pages/CarteVaud";
 
 function AppContent() {
   const { user, loading, logout } = useAuth();
@@ -28,6 +29,7 @@ function AppContent() {
     if (page === "accueil") return <Accueil onNavigate={setPage} />;
     if (page === "dashboard") return <Dashboard />;
     if (page === "saisie") return <Saisie />;
+    if (page === "carte") return <CarteVaud />;
     return <Accueil onNavigate={setPage} />;
   };
 
