@@ -1,15 +1,27 @@
-import { useState, useEffect, useRef } from "react";
-import { BoutonExport } from "./ExportPDF";
+import { useState, useEffect, useRef, useCallback } from "react";
 import {
   getKpis, getParEtablissement, getParPathologie, getEvolution,
   getEtablissements, getAnneesDisponibles, getMoisDisponibles,
   getSemainesDisponibles, getJoursDisponibles
 } from "../data/api";
+import { BoutonExport } from "./ExportPDF";
+
+const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
+function getToken() { return localStorage.getItem("vh_token"); }
+async function api(path) {
+  const r = await fetch(`${BASE_URL}${path}`, {
+    headers: { Authorization: `Bearer ${getToken()}` }
+  });
+  if (!r.ok) return [];
+  return r.json();
+}
 
 const COLORS = {
   teal:"#00A89D", lime:"#8DC63F", gray:"#ADB5BD",
-  teal2:"#009990", lime2:"#6A9A2A", blue:"#3B82F6", amber:"#F59E0B",
+  blue:"#3B82F6", amber:"#F59E0B", indigo:"#6366F1",
+  red:"#EF4444", pink:"#EC4899",
 };
+const CHART_COLORS = [COLORS.teal,COLORS.lime,COLORS.blue,COLORS.amber,COLORS.indigo,COLORS.red,COLORS.pink,COLORS.gray];
 const PATHO_COLORS = [COLORS.teal,COLORS.lime,COLORS.gray,COLORS.blue,COLORS.amber,"#E2E8F0"];
 
 const KPI_CONFIG = [
@@ -20,9 +32,10 @@ const KPI_CONFIG = [
   {key:"total_sortis",           label:"Patients sortis",     unit:"",  accent:"teal",                               color:COLORS.teal,  evoKey:"sortis"},
   {key:"total_presents",         label:"Patients présents",   unit:"",  accent:"gray",                               color:COLORS.gray,  evoKey:"presents"},
   {key:"total_transferts",       label:"Transferts",          unit:"",  accent:"gray",                               color:COLORS.amber, evoKey:"transferts"},
-  {key:"total_rehospitalisations",label:"Réhospitalisations", unit:"",  accent:"gray",                               color:"#6366F1",    evoKey:"rehospitalisations"},
+  {key:"total_rehospitalisations",label:"Réhospitalisations", unit:"",  accent:"gray",                               color:COLORS.indigo,evoKey:"rehospitalisations"},
 ];
 
+// ── Charts ────────────────────────────────────────────────────
 function BarChart({canvasId,labels,data,color}){
   const ref=useRef(null),chartRef=useRef(null);
   useEffect(()=>{
@@ -34,50 +47,61 @@ function BarChart({canvasId,labels,data,color}){
   return <canvas ref={ref} id={canvasId}/>;
 }
 
-function LineChart({canvasId,labels,data,color,compareLabels,compareData,compareColor,compareLegend,mainLegend}){
+function LineChart({canvasId,labels,data,color,compareData,compareColor,mainLegend,compareLegend}){
   const ref=useRef(null),chartRef=useRef(null);
   useEffect(()=>{
     if(!ref.current||!window.Chart)return;
     if(chartRef.current)chartRef.current.destroy();
-    const datasets=[{
-      label:mainLegend||"Période actuelle",
-      data,borderColor:color,backgroundColor:color+"15",borderWidth:2,
-      pointRadius:4,pointBackgroundColor:"#FFFFFF",pointBorderColor:color,pointBorderWidth:2,
-      fill:true,tension:0.35,
-    }];
-    if(compareData&&compareData.length){
-      datasets.push({
-        label:compareLegend||"Période comparée",
-        data:compareData,borderColor:compareColor||"#ADB5BD",
-        backgroundColor:"transparent",borderWidth:2,
-        borderDash:[5,4],pointRadius:3,pointBackgroundColor:"#FFFFFF",
-        pointBorderColor:compareColor||"#ADB5BD",pointBorderWidth:2,
-        fill:false,tension:0.35,
-      });
-    }
-    chartRef.current=new window.Chart(ref.current,{
-      type:"line",
-      data:{labels:labels.length>=( compareLabels||[]).length?labels:(compareLabels||labels),datasets},
-      options:{responsive:true,maintainAspectRatio:false,
-        plugins:{legend:{display:!!(compareData&&compareData.length),position:"top",labels:{font:{size:11},boxWidth:16,padding:12}}},
-        scales:{y:{beginAtZero:true,ticks:{font:{size:10},color:"#ADB5BD"},grid:{color:"#F1F3F5"}},x:{ticks:{font:{size:10},color:"#ADB5BD",maxRotation:45,autoSkip:false},grid:{display:false}}}}
-    });
+    const datasets=[{label:mainLegend||"Période actuelle",data,borderColor:color,backgroundColor:color+"15",borderWidth:2,pointRadius:4,pointBackgroundColor:"#FFF",pointBorderColor:color,pointBorderWidth:2,fill:true,tension:0.35}];
+    if(compareData&&compareData.length)datasets.push({label:compareLegend||"Période comparée",data:compareData,borderColor:compareColor||"#ADB5BD",backgroundColor:"transparent",borderWidth:2,borderDash:[5,4],pointRadius:3,pointBackgroundColor:"#FFF",pointBorderColor:compareColor||"#ADB5BD",pointBorderWidth:2,fill:false,tension:0.35});
+    chartRef.current=new window.Chart(ref.current,{type:"line",data:{labels,datasets},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:!!(compareData&&compareData.length),position:"top",labels:{font:{size:11},boxWidth:16,padding:12}}},scales:{y:{beginAtZero:true,ticks:{font:{size:10},color:"#ADB5BD"},grid:{color:"#F1F3F5"}},x:{ticks:{font:{size:10},color:"#ADB5BD",maxRotation:45,autoSkip:false},grid:{display:false}}}}});
     return()=>chartRef.current?.destroy();
   },[JSON.stringify(labels),JSON.stringify(data),JSON.stringify(compareData)]);
   return <canvas ref={ref} id={canvasId}/>;
 }
 
-function DoughnutChart({canvasId,labels,data,colors}){
+function DoughnutChart({canvasId,labels,data,colors,showLegend=false}){
   const ref=useRef(null),chartRef=useRef(null);
   useEffect(()=>{
     if(!ref.current||!window.Chart)return;
     if(chartRef.current)chartRef.current.destroy();
-    chartRef.current=new window.Chart(ref.current,{type:"doughnut",data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:0,hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},cutout:"65%"}});
+    chartRef.current=new window.Chart(ref.current,{type:"doughnut",data:{labels,datasets:[{data,backgroundColor:colors,borderWidth:2,borderColor:"#fff",hoverOffset:4}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:showLegend,position:"right",labels:{font:{size:10},boxWidth:12,padding:8}}},cutout:"60%"}});
     return()=>chartRef.current?.destroy();
   },[JSON.stringify(data)]);
   return <canvas ref={ref} id={canvasId}/>;
 }
 
+// ── Mini camembert avec légende ───────────────────────────────
+function MiniDonut({title,data,canvasId,height=130}){
+  if(!data||!data.length)return(
+    <div style={{textAlign:"center",color:"#ADB5BD",fontSize:12,paddingTop:20}}>Aucune donnée</div>
+  );
+  const top=data.slice(0,6);
+  const colors=CHART_COLORS.slice(0,top.length);
+  return(
+    <div>
+      <div style={{height,position:"relative"}}>
+        <DoughnutChart canvasId={canvasId} labels={top.map(d=>d.label)} data={top.map(d=>d.count)} colors={colors}/>
+      </div>
+      <div style={{marginTop:8,display:"flex",flexDirection:"column",gap:3}}>
+        {top.map((d,i)=>(
+          <div key={d.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",fontSize:10}}>
+            <div style={{display:"flex",alignItems:"center",gap:5}}>
+              <div style={{width:8,height:8,borderRadius:"50%",background:colors[i],flexShrink:0}}/>
+              <span style={{color:"#475569",overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap",maxWidth:120}}>{d.label}</span>
+            </div>
+            <div style={{display:"flex",gap:6,flexShrink:0}}>
+              <span style={{fontWeight:700,color:colors[i]}}>{d.pourcentage}%</span>
+              <span style={{color:"#94A3B8"}}>({d.count})</span>
+            </div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// ── Multi-select établissements ───────────────────────────────
 function EtabMultiSelect({etablissements,selected,onChange}){
   const [open,setOpen]=useState(false),ref=useRef(null);
   useEffect(()=>{
@@ -85,7 +109,7 @@ function EtabMultiSelect({etablissements,selected,onChange}){
     document.addEventListener("mousedown",h);return()=>document.removeEventListener("mousedown",h);
   },[]);
   const isAll=selected.length===0||selected.length===etablissements.length;
-  const label=isAll?"Tous les établissements":`${selected.length} établissement${selected.length>1?"s":""} sélectionné${selected.length>1?"s":""}`;
+  const label=isAll?"Tous les établissements":`${selected.length} étab. sélectionné${selected.length>1?"s":""}`;
   return(
     <div ref={ref} className="etab-multiselect">
       <button className="etab-multiselect-btn" onClick={()=>setOpen(!open)} type="button">
@@ -108,6 +132,7 @@ function EtabMultiSelect({etablissements,selected,onChange}){
   );
 }
 
+// ── KPI Card cliquable ────────────────────────────────────────
 function KpiCard({label,value,unit,accent="teal",badge,selected,onClick}){
   const col=accent==="teal"?COLORS.teal:accent==="lime"?COLORS.lime:COLORS.gray;
   return(
@@ -121,31 +146,27 @@ function KpiCard({label,value,unit,accent="teal",badge,selected,onClick}){
   );
 }
 
-// ── Sélecteur de période pour la comparaison ──────────────────
+// ── Filtre select simple ──────────────────────────────────────
+function FilterSelect({label,options,value,onChange,fStyle,fDisabled,disabled=false}){
+  return(
+    <select style={disabled?fDisabled:fStyle} disabled={disabled} value={value} onChange={e=>onChange(e.target.value)}>
+      <option value="">{label}</option>
+      {options.map(o=><option key={o} value={o}>{o}</option>)}
+    </select>
+  );
+}
+
+// ── Sélecteur période comparaison ────────────────────────────
 function PeriodPicker({label,color,annees,value,onChange}){
   const [ann,setAnn]=useState(value.annee||"");
   const [moisList,setMoisList]=useState([]);
   const [mo,setMo]=useState(value.mois||"");
   const [semList,setSemList]=useState([]);
   const [sem,setSem]=useState(value.semaine||"");
-
-  useEffect(()=>{
-    setMo("");setMoisList([]);setSem("");setSemList([]);
-    if(!ann)return;
-    getMoisDisponibles({annee:ann}).then(setMoisList);
-  },[ann]);
-
-  useEffect(()=>{
-    setSem("");setSemList([]);
-    if(!ann||!mo)return;
-    getSemainesDisponibles({annee:ann,mois:mo}).then(setSemList);
-  },[mo,ann]);
-
-  useEffect(()=>{
-    onChange({annee:ann,mois:mo,semaine:sem});
-  },[ann,mo,sem]);
-
-  const fs={fontSize:11,padding:"5px 8px",border:`1px solid ${color}40`,borderRadius:6,background:"#FFFFFF",color:"#495057",fontFamily:"inherit",outline:"none",cursor:"pointer"};
+  useEffect(()=>{setMo("");setMoisList([]);setSem("");setSemList([]);if(!ann)return;getMoisDisponibles({annee:ann}).then(setMoisList);},[ann]);
+  useEffect(()=>{setSem("");setSemList([]);if(!ann||!mo)return;getSemainesDisponibles({annee:ann,mois:mo}).then(setSemList);},[mo,ann]);
+  useEffect(()=>{onChange({annee:ann,mois:mo,semaine:sem});},[ann,mo,sem]);
+  const fs={fontSize:11,padding:"5px 8px",border:`1px solid ${color}40`,borderRadius:6,background:"#FFF",color:"#495057",fontFamily:"inherit",outline:"none",cursor:"pointer"};
   const fd={...fs,opacity:0.45,cursor:"not-allowed"};
   return(
     <div style={{display:"flex",flexDirection:"column",gap:6,padding:"10px 12px",background:color+"08",borderRadius:8,border:`1px solid ${color}30`}}>
@@ -168,7 +189,6 @@ function PeriodPicker({label,color,annees,value,onChange}){
   );
 }
 
-// ── Libellé période ───────────────────────────────────────────
 function periodStr(p,moisList){
   if(!p.annee)return"Toutes périodes";
   if(p.semaine)return`S${p.semaine} ${p.annee}`;
@@ -176,12 +196,90 @@ function periodStr(p,moisList){
   return`${p.annee}`;
 }
 
+// ── Modal détail établissement ────────────────────────────────
+function ModalDetail({etab,filters,onClose}){
+  const [hosps,setHosps]=useState([]);
+  const [loading,setLoading]=useState(true);
+  useEffect(()=>{
+    if(!etab)return;
+    setLoading(true);
+    const params=new URLSearchParams({etablissement_id:etab.etablissement_id,limit:200});
+    if(filters.annee)params.append("annee",filters.annee);
+    if(filters.mois)params.append("mois",filters.mois);
+    if(filters.semaine)params.append("semaine",filters.semaine);
+    if(filters.typeHosp)params.append("type_hosp",filters.typeHosp);
+    if(filters.motif)params.append("motif",filters.motif);
+    if(filters.lieuHosp)params.append("lieu_hosp",filters.lieuHosp);
+    fetch(`${BASE_URL}/dashboard/detail-hospitalisations?${params}`,{headers:{Authorization:`Bearer ${getToken()}`}})
+      .then(r=>r.json()).then(setHosps).finally(()=>setLoading(false));
+  },[etab]);
+
+  if(!etab)return null;
+  return(
+    <div style={{position:"fixed",inset:0,background:"rgba(0,0,0,0.5)",zIndex:9999,display:"flex",alignItems:"center",justifyContent:"center",padding:20}} onClick={onClose}>
+      <div style={{background:"white",borderRadius:14,width:"100%",maxWidth:900,maxHeight:"85vh",overflow:"hidden",display:"flex",flexDirection:"column"}} onClick={e=>e.stopPropagation()}>
+        <div style={{padding:"16px 20px",borderBottom:"1px solid #E2E8F0",display:"flex",justifyContent:"space-between",alignItems:"center",background:"#1A2332"}}>
+          <div>
+            <div style={{fontSize:15,fontWeight:700,color:"white"}}>{etab.etablissement_nom}</div>
+            <div style={{fontSize:11,color:"#94A3B8",marginTop:2}}>Détail des hospitalisations</div>
+          </div>
+          <button onClick={onClose} style={{background:"none",border:"none",color:"white",fontSize:20,cursor:"pointer",padding:"0 4px"}}>✕</button>
+        </div>
+        <div style={{overflowY:"auto",flex:1}}>
+          {loading?(
+            <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:200,color:"#ADB5BD",gap:8}}>
+              <div className="spinner"/>Chargement…
+            </div>
+          ):(
+            <table style={{width:"100%",borderCollapse:"collapse",fontSize:11}}>
+              <thead style={{position:"sticky",top:0,background:"#F8F9FA",zIndex:1}}>
+                <tr>
+                  {["Date","Résident","Âge","Genre","Type","Lieu","Demandeur","Motif","Durée","Issue","Classe"].map(h=>(
+                    <th key={h} style={{padding:"8px 10px",textAlign:"left",fontSize:10,fontWeight:700,color:"#64748B",textTransform:"uppercase",letterSpacing:"0.5px",borderBottom:"1px solid #E2E8F0",whiteSpace:"nowrap"}}>{h}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {hosps.map((h,i)=>(
+                  <tr key={h.id} style={{background:i%2===0?"white":"#FAFAFA",borderBottom:"1px solid #F1F5F9"}}>
+                    <td style={{padding:"7px 10px",whiteSpace:"nowrap"}}>{h.date_hosp}</td>
+                    <td style={{padding:"7px 10px",fontWeight:600,color:"#00A89D"}}>{h.num_resident}</td>
+                    <td style={{padding:"7px 10px"}}>{h.age}</td>
+                    <td style={{padding:"7px 10px"}}>
+                      <span style={{padding:"2px 6px",borderRadius:4,fontSize:10,fontWeight:600,background:h.genre==="Homme"?"#EFF6FF":"#FDF2F8",color:h.genre==="Homme"?"#1D4ED8":"#9D174D"}}>{h.genre}</span>
+                    </td>
+                    <td style={{padding:"7px 10px"}}>
+                      <span style={{padding:"2px 6px",borderRadius:4,fontSize:10,background:h.type_hosp==="Urgence"?"#FEF2F2":"#F2F9E8",color:h.type_hosp==="Urgence"?"#DC2626":"#166534"}}>{h.type_hosp}</span>
+                    </td>
+                    <td style={{padding:"7px 10px",maxWidth:120,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.lieu_hosp}</td>
+                    <td style={{padding:"7px 10px"}}>{h.demandeur}</td>
+                    <td style={{padding:"7px 10px",maxWidth:150,overflow:"hidden",textOverflow:"ellipsis",whiteSpace:"nowrap"}}>{h.motif}</td>
+                    <td style={{padding:"7px 10px"}}>{h.duree_hosp}j</td>
+                    <td style={{padding:"7px 10px"}}>{h.issue}</td>
+                    <td style={{padding:"7px 10px",textAlign:"center",fontWeight:600,color:"#6366F1"}}>{h.classe_plaisir}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          )}
+        </div>
+        <div style={{padding:"10px 20px",borderTop:"1px solid #E2E8F0",fontSize:11,color:"#94A3B8",background:"#F8F9FA"}}>
+          {hosps.length} hospitalisation{hosps.length>1?"s":""} affichée{hosps.length>1?"s":""}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── Dashboard principal ───────────────────────────────────────
 export default function Dashboard(){
   const [etablissements,setEtablissements]=useState([]);
   const [selectedEtabs,setSelectedEtabs]=useState([]);
   const [selectedKpi,setSelectedKpi]=useState("total_hospitalisations");
   const [compareMode,setCompareMode]=useState(false);
+  const [modalEtab,setModalEtab]=useState(null);
 
+  // Filtres temporels
   const [annees,setAnnees]=useState([]);
   const [moisList,setMoisList]=useState([]);
   const [semainesList,setSemainesList]=useState([]);
@@ -191,7 +289,26 @@ export default function Dashboard(){
   const [semaine,setSemaine]=useState("");
   const [jour,setJour]=useState("");
 
-  // Périodes de comparaison
+  // Filtres métier
+  const [typesHosp,setTypesHosp]=useState([]);
+  const [motifs,setMotifs]=useState([]);
+  const [lieux,setLieux]=useState([]);
+  const [typeHosp,setTypeHosp]=useState("");
+  const [motif,setMotif]=useState("");
+  const [lieuHosp,setLieuHosp]=useState("");
+  const [classeP,setClasseP]=useState("");
+  const [typeEtab,setTypeEtab]=useState("");
+  const [showMoreFilters,setShowMoreFilters]=useState(false);
+
+  // Données
+  const [kpis,setKpis]=useState(null);
+  const [etabStats,setEtabStats]=useState([]);
+  const [pathoStats,setPathoStats]=useState([]);
+  const [evolution,setEvolution]=useState([]);
+  const [statsEnrichies,setStatsEnrichies]=useState(null);
+  const [loading,setLoading]=useState(true);
+
+  // Comparaison
   const [periodeA,setPeriodeA]=useState({annee:"",mois:"",semaine:""});
   const [periodeB,setPeriodeB]=useState({annee:"",mois:"",semaine:""});
   const [moisListA,setMoisListA]=useState([]);
@@ -200,41 +317,55 @@ export default function Dashboard(){
   const [evolutionB,setEvolutionB]=useState([]);
   const [loadingCompare,setLoadingCompare]=useState(false);
 
-  const [kpis,setKpis]=useState(null);
-  const [etabStats,setEtabStats]=useState([]);
-  const [pathoStats,setPathoStats]=useState([]);
-  const [evolution,setEvolution]=useState([]);
-  const [loading,setLoading]=useState(true);
-
+  // Charger filtres statiques
   useEffect(()=>{
-    Promise.all([getEtablissements(),getAnneesDisponibles()]).then(([etabs,ans])=>{
+    Promise.all([
+      getEtablissements(),
+      getAnneesDisponibles(),
+      api("/dashboard/filtres/types-hosp"),
+      api("/dashboard/filtres/motifs"),
+      api("/dashboard/filtres/lieux"),
+    ]).then(([etabs,ans,th,mo,li])=>{
       setEtablissements(etabs);setAnnees(ans);
+      setTypesHosp(th);setMotifs(mo);setLieux(li);
     });
   },[]);
 
   useEffect(()=>{
     setMois("");setMoisList([]);setSemaine("");setSemainesList([]);setJour("");setJoursList([]);
-    if(!annee)return;
-    getMoisDisponibles({annee}).then(setMoisList);
+    if(!annee)return;getMoisDisponibles({annee}).then(setMoisList);
   },[annee]);
 
   useEffect(()=>{
     setSemaine("");setSemainesList([]);setJour("");setJoursList([]);
-    if(!annee||!mois)return;
-    getSemainesDisponibles({annee,mois}).then(setSemainesList);
+    if(!annee||!mois)return;getSemainesDisponibles({annee,mois}).then(setSemainesList);
   },[mois,annee]);
 
   useEffect(()=>{
     setJour("");setJoursList([]);
-    if(!annee||!semaine)return;
-    getJoursDisponibles({annee,...(mois&&{mois}),semaine}).then(setJoursList);
+    if(!annee||!semaine)return;getJoursDisponibles({annee,...(mois&&{mois}),semaine}).then(setJoursList);
   },[semaine,mois,annee]);
 
+  // Construire params communs
+  const buildParams=useCallback(()=>{
+    const p={};
+    if(annee)p.annee=annee;if(mois)p.mois=mois;if(semaine)p.semaine=semaine;if(jour)p.jour=jour;
+    if(typeHosp)p.type_hosp=typeHosp;if(motif)p.motif=motif;if(lieuHosp)p.lieu_hosp=lieuHosp;
+    if(classeP)p.classe_plaisir=classeP;if(typeEtab)p.type_etab=typeEtab;
+    return p;
+  },[annee,mois,semaine,jour,typeHosp,motif,lieuHosp,classeP,typeEtab]);
+
+  // Charger données dashboard
   useEffect(()=>{
     setLoading(true);
-    const base={};
-    if(annee)base.annee=annee;if(mois)base.mois=mois;if(semaine)base.semaine=semaine;if(jour)base.jour=jour;
+    const base=buildParams();
     const etabsToQuery=selectedEtabs.length>0&&selectedEtabs.length<etablissements.length?selectedEtabs:[null];
+
+    // Stats enrichies
+    const enrichParams=new URLSearchParams(base);
+    if(etabsToQuery.length===1&&etabsToQuery[0])enrichParams.append("etablissement_id",etabsToQuery[0]);
+    api(`/dashboard/stats-enrichies?${enrichParams}`).then(setStatsEnrichies);
+
     Promise.all(etabsToQuery.map(etabId=>{
       const params={...base};if(etabId)params.etablissement_id=etabId;
       return Promise.all([getKpis(params),getParEtablissement(params),getParPathologie(params),getEvolution(params)]);
@@ -261,35 +392,25 @@ export default function Dashboard(){
         setEvolution(results[0][3]);
       }
     }).catch(console.error).finally(()=>setLoading(false));
-  },[annee,mois,semaine,jour,selectedEtabs,etablissements]);
+  },[annee,mois,semaine,jour,selectedEtabs,etablissements,typeHosp,motif,lieuHosp,classeP,typeEtab]);
 
-  // Charger les évolutions de comparaison
+  // Comparaison
   useEffect(()=>{
     if(!compareMode)return;
     if(!periodeA.annee&&!periodeB.annee)return;
     setLoadingCompare(true);
-    const paramsA={};
-    if(periodeA.annee)paramsA.annee=periodeA.annee;
-    if(periodeA.mois)paramsA.mois=periodeA.mois;
-    if(periodeA.semaine)paramsA.semaine=periodeA.semaine;
-    const paramsB={};
-    if(periodeB.annee)paramsB.annee=periodeB.annee;
-    if(periodeB.mois)paramsB.mois=periodeB.mois;
-    if(periodeB.semaine)paramsB.semaine=periodeB.semaine;
+    const paramsA={};if(periodeA.annee)paramsA.annee=periodeA.annee;if(periodeA.mois)paramsA.mois=periodeA.mois;if(periodeA.semaine)paramsA.semaine=periodeA.semaine;
+    const paramsB={};if(periodeB.annee)paramsB.annee=periodeB.annee;if(periodeB.mois)paramsB.mois=periodeB.mois;if(periodeB.semaine)paramsB.semaine=periodeB.semaine;
     const etabParam=selectedEtabs.length===1?{etablissement_id:selectedEtabs[0]}:{};
     Promise.all([
       periodeA.annee?getEvolution({...paramsA,...etabParam}):Promise.resolve([]),
       periodeB.annee?getEvolution({...paramsB,...etabParam}):Promise.resolve([]),
       periodeA.annee?getMoisDisponibles({annee:periodeA.annee}):Promise.resolve([]),
       periodeB.annee?getMoisDisponibles({annee:periodeB.annee}):Promise.resolve([]),
-    ]).then(([evA,evB,mA,mB])=>{
-      setEvolutionA(evA);setEvolutionB(evB);
-      setMoisListA(mA);setMoisListB(mB);
-    }).finally(()=>setLoadingCompare(false));
+    ]).then(([evA,evB,mA,mB])=>{setEvolutionA(evA);setEvolutionB(evB);setMoisListA(mA);setMoisListB(mB);}).finally(()=>setLoadingCompare(false));
   },[compareMode,periodeA,periodeB,selectedEtabs]);
 
   const activeKpi=KPI_CONFIG.find(k=>k.key===selectedKpi)||KPI_CONFIG[0];
-
   const getEvoData=(evo)=>{
     if(!evo||!evo.length)return[];
     const key=activeKpi.evoKey;
@@ -298,16 +419,17 @@ export default function Dashboard(){
 
   const periodLabel=()=>{
     const etabL=selectedEtabs.length>0&&selectedEtabs.length<etablissements.length?`${selectedEtabs.length} établissement${selectedEtabs.length>1?"s":""}` :"Tous les établissements";
-    const dateL=jour?`Journée du ${jour}`:semaine?`Semaine ${semaine}${mois?` · ${moisList.find(m=>String(m.numero)===mois)?.nom||""}`:""} ${annee}`:mois?`${moisList.find(m=>String(m.numero)===mois)?.nom||""} ${annee}`:annee?`Année ${annee}`:"Toutes périodes";
-    return`${etabL} · ${dateL}`;
+    const dateL=jour?`Journée du ${jour}`:semaine?`Semaine ${semaine} ${annee}`:mois?`${moisList.find(m=>String(m.numero)===mois)?.nom||""} ${annee}`:annee?`Année ${annee}`:"Toutes périodes";
+    const filtresL=[typeHosp,motif,lieuHosp,classeP?`Classe ${classeP}`:"",typeEtab].filter(Boolean).join(" · ");
+    return`${etabL} · ${dateL}${filtresL?` · ${filtresL}`:""}`;
   };
 
-  const hasFilters=selectedEtabs.length>0||annee||mois||semaine||jour;
-  const resetFilters=()=>{setSelectedEtabs([]);setAnnee("");setMois("");setSemaine("");setJour("");};
+  const hasFilters=selectedEtabs.length>0||annee||mois||semaine||jour||typeHosp||motif||lieuHosp||classeP||typeEtab;
+  const resetFilters=()=>{setSelectedEtabs([]);setAnnee("");setMois("");setSemaine("");setJour("");setTypeHosp("");setMotif("");setLieuHosp("");setClasseP("");setTypeEtab("");};
+
   const fStyle={fontSize:12,padding:"7px 12px",border:"1px solid #E2E8F0",borderRadius:6,background:"#FFFFFF",color:"#495057",fontFamily:"inherit",outline:"none",cursor:"pointer"};
   const fDisabled={...fStyle,opacity:0.45,cursor:"not-allowed"};
 
-  // Calcul delta N vs N-1 si comparaison active
   const getDelta=()=>{
     if(!compareMode||!evolutionA.length||!evolutionB.length)return null;
     const key=activeKpi.evoKey;
@@ -321,44 +443,69 @@ export default function Dashboard(){
 
   return(
     <>
+      <ModalDetail etab={modalEtab} filters={{annee,mois,semaine,typeHosp,motif,lieuHosp}} onClose={()=>setModalEtab(null)}/>
+
       <div className="page-header">
         <div>
           <div className="page-title">Dashboard</div>
           <div className="page-subtitle">{periodLabel()}</div>
         </div>
         <div style={{display:"flex",alignItems:"center",gap:10}}>
-          <BoutonExport
-            kpis={kpis}
-            etabStats={etabStats}
-            pathoStats={pathoStats}
-            evolution={evolution}
-            activeKpiConfig={activeKpi}
-            periodLabel={periodLabel()}
-            etablissements={etablissements}
-            selectedEtabs={selectedEtabs}
-          />
-        </div>
-        <div className="filters-bar">
-          <EtabMultiSelect etablissements={etablissements} selected={selectedEtabs} onChange={setSelectedEtabs}/>
-          <select style={fStyle} value={annee} onChange={e=>setAnnee(e.target.value)}>
-            <option value="">Toutes les années</option>
-            {annees.map(a=><option key={a} value={a}>{a}</option>)}
-          </select>
-          <select style={annee?fStyle:fDisabled} disabled={!annee} value={mois} onChange={e=>setMois(e.target.value)}>
-            <option value="">Tous les mois</option>
-            {moisList.map(m=><option key={m.numero} value={m.numero}>{m.nom}</option>)}
-          </select>
-          <select style={annee?fStyle:fDisabled} disabled={!annee} value={semaine} onChange={e=>setSemaine(e.target.value)}>
-            <option value="">Toutes les semaines</option>
-            {semainesList.map(s=><option key={s.numero} value={s.numero}>Semaine {s.numero}</option>)}
-          </select>
-          <select style={semaine?fStyle:fDisabled} disabled={!semaine} value={jour} onChange={e=>setJour(e.target.value)}>
-            <option value="">Tous les jours</option>
-            {joursList.map(j=><option key={j} value={j}>{j}</option>)}
-          </select>
-          {hasFilters&&<button style={{...fStyle,background:"#F1F3F5"}} onClick={resetFilters}>Réinitialiser</button>}
+          <BoutonExport kpis={kpis} etabStats={etabStats} pathoStats={pathoStats} evolution={evolution} activeKpiConfig={activeKpi} periodLabel={periodLabel()} etablissements={etablissements} selectedEtabs={selectedEtabs}/>
         </div>
       </div>
+
+      {/* Filtres principaux */}
+      <div style={{padding:"10px 24px",background:"#F8F9FA",borderBottom:"1px solid #E2E8F0",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+        <EtabMultiSelect etablissements={etablissements} selected={selectedEtabs} onChange={setSelectedEtabs}/>
+        <select style={fStyle} value={annee} onChange={e=>setAnnee(e.target.value)}>
+          <option value="">Toutes les années</option>
+          {annees.map(a=><option key={a} value={a}>{a}</option>)}
+        </select>
+        <select style={annee?fStyle:fDisabled} disabled={!annee} value={mois} onChange={e=>setMois(e.target.value)}>
+          <option value="">Tous les mois</option>
+          {moisList.map(m=><option key={m.numero} value={m.numero}>{m.nom}</option>)}
+        </select>
+        <select style={annee?fStyle:fDisabled} disabled={!annee} value={semaine} onChange={e=>setSemaine(e.target.value)}>
+          <option value="">Toutes les semaines</option>
+          {semainesList.map(s=><option key={s.numero} value={s.numero}>Semaine {s.numero}</option>)}
+        </select>
+        <select style={semaine?fStyle:fDisabled} disabled={!semaine} value={jour} onChange={e=>setJour(e.target.value)}>
+          <option value="">Tous les jours</option>
+          {joursList.map(j=><option key={j} value={j}>{j}</option>)}
+        </select>
+        <button onClick={()=>setShowMoreFilters(!showMoreFilters)} style={{...fStyle,background:showMoreFilters?"#00A89D":"#F1F3F5",color:showMoreFilters?"white":"#495057",fontWeight:600}}>
+          {showMoreFilters?"▲ Moins de filtres":"▼ Filtres métier"}
+        </button>
+        {hasFilters&&<button style={{...fStyle,background:"#FEF2F2",color:"#DC2626",fontWeight:600}} onClick={resetFilters}>✕ Réinitialiser</button>}
+      </div>
+
+      {/* Filtres métier */}
+      {showMoreFilters&&(
+        <div style={{padding:"10px 24px",background:"#FFFBEB",borderBottom:"1px solid #FDE68A",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
+          <span style={{fontSize:11,fontWeight:700,color:"#92400E",textTransform:"uppercase",letterSpacing:"0.5px"}}>Filtres métier</span>
+          <select style={fStyle} value={typeEtab} onChange={e=>setTypeEtab(e.target.value)}>
+            <option value="">Tous types d'étab.</option>
+            {["EMS","CAT","EPSM","LOG","RES","FON"].map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+          <select style={fStyle} value={typeHosp} onChange={e=>setTypeHosp(e.target.value)}>
+            <option value="">Tous types d'hosp.</option>
+            {typesHosp.map(t=><option key={t} value={t}>{t}</option>)}
+          </select>
+          <select style={fStyle} value={motif} onChange={e=>setMotif(e.target.value)}>
+            <option value="">Tous motifs</option>
+            {motifs.map(m=><option key={m} value={m}>{m}</option>)}
+          </select>
+          <select style={fStyle} value={lieuHosp} onChange={e=>setLieuHosp(e.target.value)}>
+            <option value="">Tous lieux</option>
+            {lieux.map(l=><option key={l} value={l}>{l}</option>)}
+          </select>
+          <select style={fStyle} value={classeP} onChange={e=>setClasseP(e.target.value)}>
+            <option value="">Toutes classes</option>
+            {[1,2,3,4,5,6,7,8,9].map(c=><option key={c} value={c}>Classe {c}</option>)}
+          </select>
+        </div>
+      )}
 
       <div className="page-content">
         {loading?(
@@ -370,6 +517,7 @@ export default function Dashboard(){
               Cliquez sur un indicateur pour afficher sa courbe d'évolution
             </div>
 
+            {/* KPI Cards */}
             <div className="kpi-grid">
               {KPI_CONFIG.slice(0,4).map(k=>(
                 <KpiCard key={k.key} label={k.label} value={kpis?.[k.key]?.toLocaleString?.("fr-CH")??kpis?.[k.key]} unit={k.unit} accent={k.accent} badge={k.badge} selected={selectedKpi===k.key} onClick={()=>setSelectedKpi(k.key)}/>
@@ -381,7 +529,7 @@ export default function Dashboard(){
               ))}
             </div>
 
-            {/* Graphique évolution + bouton comparer */}
+            {/* Graphique évolution + comparaison */}
             <div style={{display:"grid",gridTemplateColumns:"minmax(0,2fr) minmax(0,1fr)",gap:14}}>
               <div className="card" style={{borderTop:`3px solid ${activeKpi.color}`}}>
                 <div className="card-header">
@@ -390,49 +538,27 @@ export default function Dashboard(){
                       Évolution — {activeKpi.label}
                       {activeKpi.unit&&<span style={{fontSize:11,color:"#ADB5BD",marginLeft:6,fontWeight:400}}>({activeKpi.unit})</span>}
                     </div>
-                    {/* Badge delta */}
-                    {delta&&(
-                      <span style={{
-                        fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:10,
-                        background:delta.positive?"#F2F9E8":"#FEF2F2",
-                        color:delta.positive?COLORS.lime:"#DC2626",
-                      }}>
-                        {delta.positive?"▲":"▼"} {Math.abs(delta.delta)}%
-                      </span>
-                    )}
+                    {delta&&<span style={{fontSize:11,fontWeight:700,padding:"2px 8px",borderRadius:10,background:delta.positive?"#F2F9E8":"#FEF2F2",color:delta.positive?COLORS.lime:"#DC2626"}}>{delta.positive?"▲":"▼"} {Math.abs(delta.delta)}%</span>}
                   </div>
                   <div style={{display:"flex",alignItems:"center",gap:8}}>
                     {annee&&!compareMode&&<span className="card-tag">{annee}</span>}
-                    <button
-                      onClick={()=>setCompareMode(!compareMode)}
-                      style={{
-                        fontSize:11,padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",
-                        fontWeight:600,transition:"all 0.15s",
-                        background:compareMode?activeKpi.color:"#F1F3F5",
-                        color:compareMode?"white":"#495057",
-                      }}
-                    >
+                    <button onClick={()=>setCompareMode(!compareMode)} style={{fontSize:11,padding:"4px 12px",borderRadius:6,border:"none",cursor:"pointer",fontWeight:600,background:compareMode?activeKpi.color:"#F1F3F5",color:compareMode?"white":"#495057"}}>
                       {compareMode?"✕ Fermer":"⇄ Comparer"}
                     </button>
                   </div>
                 </div>
-
-                {/* Sélecteurs de périodes comparées */}
                 {compareMode&&(
                   <div style={{padding:"12px 16px",borderBottom:"1px solid #F1F5F9",display:"grid",gridTemplateColumns:"1fr 1fr",gap:10}}>
                     <PeriodPicker label="Période A" color={activeKpi.color} annees={annees} value={periodeA} onChange={setPeriodeA}/>
                     <PeriodPicker label="Période B" color="#ADB5BD" annees={annees} value={periodeB} onChange={setPeriodeB}/>
                   </div>
                 )}
-
-                <div className="card-body" style={{height:compareMode?180:200}}>
+                <div className="card-body" style={{height:compareMode?170:200}}>
                   {loadingCompare?(
-                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"#ADB5BD",fontSize:13}}>
-                      <div className="spinner" style={{marginRight:8}}/>Chargement…
-                    </div>
+                    <div style={{display:"flex",alignItems:"center",justifyContent:"center",height:"100%",color:"#ADB5BD",fontSize:13}}><div className="spinner" style={{marginRight:8}}/>Chargement…</div>
                   ):(
                     <LineChart
-                      canvasId={`evo-${selectedKpi}-${annee}-${mois}-${semaine}-${compareMode}`}
+                      canvasId={`evo-${selectedKpi}-${annee}-${mois}-${semaine}-${compareMode}-${typeHosp}-${motif}`}
                       labels={compareMode?(evolutionA.length?evolutionA.map(e=>e.label):evolutionB.map(e=>e.label)):evolution.map(e=>e.label)}
                       data={compareMode?getEvoData(evolutionA):getEvoData(evolution)}
                       color={activeKpi.color}
@@ -443,24 +569,11 @@ export default function Dashboard(){
                     />
                   )}
                 </div>
-
-                {/* Résumé chiffré comparaison */}
                 {compareMode&&delta&&(
                   <div style={{padding:"10px 16px",borderTop:"1px solid #F1F5F9",display:"flex",gap:20,fontSize:12}}>
-                    <div>
-                      <span style={{color:"#ADB5BD"}}>Période A : </span>
-                      <strong style={{color:activeKpi.color}}>{delta.totalA.toLocaleString("fr-CH")}</strong>
-                    </div>
-                    <div>
-                      <span style={{color:"#ADB5BD"}}>Période B : </span>
-                      <strong style={{color:"#64748B"}}>{delta.totalB.toLocaleString("fr-CH")}</strong>
-                    </div>
-                    <div>
-                      <span style={{color:"#ADB5BD"}}>Évolution : </span>
-                      <strong style={{color:delta.positive?COLORS.lime:"#DC2626"}}>
-                        {delta.positive?"+":""}{delta.delta}%
-                      </strong>
-                    </div>
+                    <div><span style={{color:"#ADB5BD"}}>Période A : </span><strong style={{color:activeKpi.color}}>{delta.totalA.toLocaleString("fr-CH")}</strong></div>
+                    <div><span style={{color:"#ADB5BD"}}>Période B : </span><strong style={{color:"#64748B"}}>{delta.totalB.toLocaleString("fr-CH")}</strong></div>
+                    <div><span style={{color:"#ADB5BD"}}>Évolution : </span><strong style={{color:delta.positive?COLORS.lime:"#DC2626"}}>{delta.positive?"+":""}{delta.delta}%</strong></div>
                   </div>
                 )}
               </div>
@@ -469,7 +582,7 @@ export default function Dashboard(){
                 <div className="card-header"><div className="card-title">Répartition par pathologie</div></div>
                 <div className="card-body">
                   <div style={{height:140}}>
-                    <DoughnutChart canvasId={`donut-${annee}-${mois}`} labels={pathoStats.map(p=>p.pathologie)} data={pathoStats.map(p=>p.count)} colors={PATHO_COLORS.slice(0,pathoStats.length)}/>
+                    <DoughnutChart canvasId={`donut-${annee}-${mois}-${typeHosp}`} labels={pathoStats.map(p=>p.pathologie)} data={pathoStats.map(p=>p.count)} colors={PATHO_COLORS.slice(0,pathoStats.length)}/>
                   </div>
                   <div className="legend" style={{marginTop:10}}>
                     {pathoStats.slice(0,5).map((p,i)=>(
@@ -483,38 +596,98 @@ export default function Dashboard(){
               </div>
             </div>
 
+            {/* Graphiques enrichis */}
+            {statsEnrichies&&(
+              <>
+                <div style={{fontSize:13,fontWeight:700,color:"#1A2332",margin:"16px 0 8px",display:"flex",alignItems:"center",gap:8}}>
+                  Analyses détaillées
+                  <span style={{fontSize:11,color:"#94A3B8",fontWeight:400}}>— {statsEnrichies.total?.toLocaleString("fr-CH")} hospitalisations</span>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(3,1fr)",gap:12}}>
+                  {/* Genre */}
+                  <div className="card">
+                    <div className="card-header"><div className="card-title">Répartition H/F</div></div>
+                    <div className="card-body" style={{paddingTop:8}}>
+                      <MiniDonut title="Genre" data={statsEnrichies.par_genre} canvasId={`genre-${annee}-${mois}-${typeHosp}`} height={120}/>
+                    </div>
+                  </div>
+                  {/* Heure */}
+                  <div className="card">
+                    <div className="card-header"><div className="card-title">Par heure d'hospitalisation</div></div>
+                    <div className="card-body" style={{paddingTop:8}}>
+                      <MiniDonut title="Heure" data={statsEnrichies.par_heure_hosp} canvasId={`heure-${annee}-${mois}-${typeHosp}`} height={120}/>
+                    </div>
+                  </div>
+                  {/* Lieu */}
+                  <div className="card">
+                    <div className="card-header"><div className="card-title">Par lieu d'hospitalisation</div></div>
+                    <div className="card-body" style={{paddingTop:8}}>
+                      <MiniDonut title="Lieu" data={statsEnrichies.par_lieu_hosp} canvasId={`lieu-${annee}-${mois}-${typeHosp}`} height={120}/>
+                    </div>
+                  </div>
+                </div>
+                <div style={{display:"grid",gridTemplateColumns:"repeat(2,1fr)",gap:12,marginTop:12}}>
+                  {/* Jour */}
+                  <div className="card">
+                    <div className="card-header"><div className="card-title">Par jour d'hospitalisation</div></div>
+                    <div className="card-body" style={{paddingTop:8}}>
+                      <MiniDonut title="Jour" data={statsEnrichies.par_jour_hosp} canvasId={`jour-${annee}-${mois}-${typeHosp}`} height={130}/>
+                    </div>
+                  </div>
+                  {/* Demandeur */}
+                  <div className="card">
+                    <div className="card-header"><div className="card-title">Par demandeur (à la demande de…)</div></div>
+                    <div className="card-body" style={{height:200}}>
+                      <BarChart canvasId={`demandeur-${annee}-${mois}-${typeHosp}`} labels={statsEnrichies.par_demandeur?.map(d=>d.label)||[]} data={statsEnrichies.par_demandeur?.map(d=>d.count)||[]} color={COLORS.indigo}/>
+                    </div>
+                  </div>
+                </div>
+              </>
+            )}
+
+            {/* Graphiques par établissement */}
             {etabStats.length>0&&(
               <div style={{display:"grid",gridTemplateColumns:"repeat(2,minmax(0,1fr))",gap:14}}>
                 <div className="card">
                   <div className="card-header"><div className="card-title">Hospitalisations par établissement</div></div>
                   <div className="card-body" style={{height:200}}>
-                    <BarChart canvasId={`bar-etab-${annee}`} labels={etabStats.map(e=>e.etablissement_nom.split(" ").slice(-1)[0])} data={etabStats.map(e=>e.hospitalisations)} color={COLORS.teal}/>
+                    <BarChart canvasId={`bar-etab-${annee}-${typeHosp}`} labels={etabStats.map(e=>e.etablissement_nom.split(" ").slice(-1)[0])} data={etabStats.map(e=>e.hospitalisations)} color={COLORS.teal}/>
                   </div>
                 </div>
                 <div className="card">
                   <div className="card-header"><div className="card-title">Durée moy. séjour par établissement (j)</div></div>
                   <div className="card-body" style={{height:200}}>
-                    <BarChart canvasId={`bar-duree-${annee}`} labels={etabStats.map(e=>e.etablissement_nom.split(" ").slice(-1)[0])} data={etabStats.map(e=>e.duree_moyenne??0)} color={COLORS.lime}/>
+                    <BarChart canvasId={`bar-duree-${annee}-${typeHosp}`} labels={etabStats.map(e=>e.etablissement_nom.split(" ").slice(-1)[0])} data={etabStats.map(e=>e.duree_moyenne??0)} color={COLORS.lime}/>
                   </div>
                 </div>
               </div>
             )}
 
+            {/* Tableau détail cliquable */}
             <div className="card">
               <div className="card-header">
                 <div className="card-title">Détail par établissement</div>
-                <span style={{fontSize:11,color:"#ADB5BD"}}>{etabStats.filter(e=>e.hospitalisations>0).length} établissements</span>
+                <div style={{display:"flex",alignItems:"center",gap:8}}>
+                  <span style={{fontSize:11,color:"#ADB5BD"}}>{etabStats.filter(e=>e.hospitalisations>0).length} établissements</span>
+                  <span style={{fontSize:10,color:"#94A3B8",fontStyle:"italic"}}>Cliquez sur une ligne pour le détail</span>
+                </div>
               </div>
               {etabStats.length===0?(
                 <div className="empty-state">Aucune donnée pour cette sélection.</div>
               ):(
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>Établissement</th><th>Hospit.</th><th>Durée moy.</th><th>Attente op.</th><th>Taux rempl.</th><th>Sortis</th><th>Transferts</th><th>Réhospit.</th></tr></thead>
+                    <thead>
+                      <tr><th>Établissement</th><th>Hospit.</th><th>Durée moy.</th><th>Attente op.</th><th>Taux rempl.</th><th>Sortis</th><th>Transferts</th><th>Réhospit.</th></tr>
+                    </thead>
                     <tbody>
                       {etabStats.map(e=>(
-                        <tr key={e.etablissement_id}>
-                          <td>{e.etablissement_nom}</td>
+                        <tr key={e.etablissement_id}
+                          onClick={()=>setModalEtab(e)}
+                          style={{cursor:"pointer",transition:"background 0.1s"}}
+                          onMouseEnter={ev=>ev.currentTarget.style.background="#E6F7F6"}
+                          onMouseLeave={ev=>ev.currentTarget.style.background=""}>
+                          <td style={{fontWeight:600,color:"#1A2332"}}>{e.etablissement_nom}</td>
                           <td style={{fontFamily:"var(--font-mono)",fontWeight:600,color:"var(--teal)"}}>{e.hospitalisations.toLocaleString("fr-CH")}</td>
                           <td>{e.duree_moyenne?`${e.duree_moyenne}j`:"—"}</td>
                           <td>{e.attente_moyenne?`${e.attente_moyenne}j`:"—"}</td>
