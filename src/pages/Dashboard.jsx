@@ -27,12 +27,12 @@ const PATHO_COLORS = [COLORS.teal,COLORS.lime,COLORS.gray,COLORS.blue,COLORS.amb
 const KPI_CONFIG = [
   {key:"total_hospitalisations", label:"Hospitalisations",    unit:"",  accent:"teal", badge:"Période sélectionnée", color:COLORS.teal,  evoKey:"hospitalisations"},
   {key:"duree_moyenne_sejour",   label:"Durée moy. séjour",   unit:"j", accent:"lime",                               color:COLORS.lime,  evoKey:"duree_moyenne"},
-  {key:"attente_moyenne_avant_op",label:"Attente avant op.",  unit:"j", accent:"teal",                               color:COLORS.teal,  evoKey:"attente_moyenne"},
-  {key:"taux_remplissage_moyen", label:"Taux de remplissage", unit:"%", accent:"lime",                               color:COLORS.lime,  evoKey:"taux_remplissage"},
+  {key:"taux_deces",             label:"Taux de décès",       unit:"%", accent:"gray",                               color:COLORS.red,   evoKey:"taux_deces"},
+  {key:"repartition_urgences",   label:"Hospitalisations urgence", unit:"%", accent:"teal",                          color:COLORS.amber, evoKey:"repartition_urgences"},
   {key:"total_sortis",           label:"Patients sortis",     unit:"",  accent:"teal",                               color:COLORS.teal,  evoKey:"sortis"},
-  {key:"total_presents",         label:"Patients présents",   unit:"",  accent:"gray",                               color:COLORS.gray,  evoKey:"presents"},
   {key:"total_transferts",       label:"Transferts",          unit:"",  accent:"gray",                               color:COLORS.amber, evoKey:"transferts"},
-  {key:"total_rehospitalisations",label:"Réhospitalisations", unit:"",  accent:"gray",                               color:COLORS.indigo,evoKey:"rehospitalisations"},
+  {key:"taux_nuit",              label:"Hospit. de nuit",     unit:"%", accent:"gray",                               color:COLORS.indigo,evoKey:"taux_nuit"},
+  {key:"taux_weekend",           label:"Hospit. week-end",    unit:"%", accent:"lime",                               color:COLORS.lime,  evoKey:"taux_weekend"},
 ];
 
 // ── Charts ────────────────────────────────────────────────────
