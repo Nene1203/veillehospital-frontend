@@ -36,14 +36,27 @@ const KPI_CONFIG = [
 ];
 
 // ── Charts ────────────────────────────────────────────────────
-function BarChart({canvasId,labels,data,color}){
+function BarChart({canvasId,labels,data,color,showValues=false}){
   const ref=useRef(null),chartRef=useRef(null);
   useEffect(()=>{
     if(!ref.current||!window.Chart)return;
     if(chartRef.current)chartRef.current.destroy();
-    chartRef.current=new window.Chart(ref.current,{type:"bar",data:{labels,datasets:[{data,backgroundColor:color+"30",borderColor:color,borderWidth:1.5,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false}},scales:{y:{beginAtZero:true,ticks:{font:{size:10},color:"#ADB5BD"},grid:{color:"#F1F3F5"}},x:{ticks:{font:{size:10},color:"#ADB5BD",maxRotation:45,autoSkip:false},grid:{display:false}}}}});
+    chartRef.current=new window.Chart(ref.current,{type:"bar",data:{labels,datasets:[{data,backgroundColor:color+"30",borderColor:color,borderWidth:1.5,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:false},scales:{y:{beginAtZero:true,ticks:{font:{size:10},color:"#ADB5BD"},grid:{color:"#F1F3F5"}},x:{ticks:{font:{size:10},color:"#ADB5BD",maxRotation:45,autoSkip:false},grid:{display:false}}},..( showValues ? {plugins:{legend:{display:false},tooltip:{enabled:true}}} : {})}});
+    // Ajouter les valeurs au-dessus si showValues
+    if(showValues && chartRef.current){
+      const original = chartRef.current.options.animation?.onComplete;
+      chartRef.current.options.plugins = chartRef.current.options.plugins || {};
+      chartRef.current.options.plugins.datalabels = {
+        display: true,
+        anchor: "end",
+        align: "top",
+        color: color,
+        font: { size: 10, weight: "bold" },
+        formatter: (val) => val > 0 ? val.toLocaleString("fr-CH") : "",
+      };
+    }
     return()=>chartRef.current?.destroy();
-  },[JSON.stringify(labels),JSON.stringify(data)]);
+  },[JSON.stringify(labels),JSON.stringify(data),showValues]);
   return <canvas ref={ref} id={canvasId}/>;
 }
 
@@ -637,8 +650,35 @@ export default function Dashboard(){
                   {/* Demandeur */}
                   <div className="card">
                     <div className="card-header"><div className="card-title">Par demandeur (à la demande de…)</div></div>
-                    <div className="card-body" style={{height:200}}>
-                      <BarChart canvasId={`demandeur-${annee}-${mois}-${typeHosp}`} labels={statsEnrichies.par_demandeur?.map(d=>d.label)||[]} data={statsEnrichies.par_demandeur?.map(d=>d.count)||[]} color={COLORS.indigo}/>
+                    <div className="card-body" style={{height:220}}>
+                      <BarChart canvasId={`demandeur-${annee}-${mois}-${typeHosp}`} labels={statsEnrichies.par_demandeur?.map(d=>d.label)||[]} data={statsEnrichies.par_demandeur?.map(d=>d.count)||[]} color={COLORS.indigo} showValues={true}/>
+                    </div>
+                  </div>
+                </div>
+                {/* Issue de l'hospitalisation */}
+                <div style={{display:"grid",gridTemplateColumns:"1fr",gap:12,marginTop:12}}>
+                  <div className="card">
+                    <div className="card-header"><div className="card-title">Par issue de l'hospitalisation</div></div>
+                    <div className="card-body" style={{paddingTop:8}}>
+                      <div style={{display:"grid",gridTemplateColumns:"minmax(0,1fr) minmax(0,1fr)",gap:16,alignItems:"center"}}>
+                        <div style={{height:160}}>
+                          <MiniDonut title="Issue" data={statsEnrichies.par_issue||[]} canvasId={`issue-${annee}-${mois}-${typeHosp}`} height={160}/>
+                        </div>
+                        <div style={{display:"flex",flexDirection:"column",gap:6}}>
+                          {(statsEnrichies.par_issue||[]).map((d,i)=>(
+                            <div key={d.label} style={{display:"flex",justifyContent:"space-between",alignItems:"center",padding:"8px 12px",borderRadius:8,background:i===0?"#FEF2F2":i===1?"#F2F9E8":i===2?"#EEF2FF":"#F8F9FA",border:`1px solid ${CHART_COLORS[i]}30`}}>
+                              <div style={{display:"flex",alignItems:"center",gap:8}}>
+                                <div style={{width:10,height:10,borderRadius:"50%",background:CHART_COLORS[i]}}/>
+                                <span style={{fontSize:12,fontWeight:600,color:"#1A2332"}}>{d.label}</span>
+                              </div>
+                              <div style={{display:"flex",gap:10,alignItems:"center"}}>
+                                <span style={{fontSize:14,fontWeight:800,color:CHART_COLORS[i]}}>{d.pourcentage}%</span>
+                                <span style={{fontSize:11,color:"#94A3B8"}}>({d.count})</span>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      </div>
                     </div>
                   </div>
                 </div>
