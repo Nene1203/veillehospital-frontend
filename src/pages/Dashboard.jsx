@@ -41,20 +41,7 @@ function BarChart({canvasId,labels,data,color,showValues=false}){
   useEffect(()=>{
     if(!ref.current||!window.Chart)return;
     if(chartRef.current)chartRef.current.destroy();
-    chartRef.current=new window.Chart(ref.current,{type:"bar",data:{labels,datasets:[{data,backgroundColor:color+"30",borderColor:color,borderWidth:1.5,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:false},scales:{y:{beginAtZero:true,ticks:{font:{size:10},color:"#ADB5BD"},grid:{color:"#F1F3F5"}},x:{ticks:{font:{size:10},color:"#ADB5BD",maxRotation:45,autoSkip:false},grid:{display:false}}},..( showValues ? {plugins:{legend:{display:false},tooltip:{enabled:true}}} : {})}});
-    // Ajouter les valeurs au-dessus si showValues
-    if(showValues && chartRef.current){
-      const original = chartRef.current.options.animation?.onComplete;
-      chartRef.current.options.plugins = chartRef.current.options.plugins || {};
-      chartRef.current.options.plugins.datalabels = {
-        display: true,
-        anchor: "end",
-        align: "top",
-        color: color,
-        font: { size: 10, weight: "bold" },
-        formatter: (val) => val > 0 ? val.toLocaleString("fr-CH") : "",
-      };
-    }
+    chartRef.current=new window.Chart(ref.current,{type:"bar",data:{labels,datasets:[{data,backgroundColor:color+"30",borderColor:color,borderWidth:1.5,borderRadius:4,borderSkipped:false}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{display:false},datalabels:showValues?{display:true,anchor:"end",align:"top",color:color,font:{size:10,weight:"bold"},formatter:(val)=>val>0?val.toLocaleString("fr-CH"):""}:false},scales:{y:{beginAtZero:true,ticks:{font:{size:10},color:"#ADB5BD"},grid:{color:"#F1F3F5"}},x:{ticks:{font:{size:10},color:"#ADB5BD",maxRotation:45,autoSkip:false},grid:{display:false}}}}});
     return()=>chartRef.current?.destroy();
   },[JSON.stringify(labels),JSON.stringify(data),showValues]);
   return <canvas ref={ref} id={canvasId}/>;
