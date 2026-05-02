@@ -68,7 +68,7 @@ function AppContent() {
   return (
     <div className="app-layout">
       <Sidebar currentPage={page} onNavigate={navigate} user={user} onLogout={logout} />
-      <div className="main-content" style={{ position: "relative" }}>
+      <div className="main-content" style={{ position: "relative", paddingRight: "60px" }}>
 
         {/* Roue admin avec menu déroulant */}
         {user.role === "admin" && (
