@@ -1,14 +1,16 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 import { getCampagnes, getEtablissements, getKpis } from "../data/api";
 
 export default function Accueil({ onNavigate }) {
+  const { user } = useContext(AuthContext);
   const [campagnes, setCampagnes] = useState([]);
   const [kpis, setKpis] = useState(null);
   const [nbEtabs, setNbEtabs] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    Promise.all([getCampagnes(), getEtablissements(), getKpis()])
+    Promise.all([getCampagnes(), getEtablissements(), getKpis(user?.etablissement_ids?.length === 1 ? {etablissement_id: user.etablissement_ids[0]} : {})])
       .then(([camps, etabs, kpisData]) => {
         setCampagnes(camps);
         setNbEtabs(etabs.length);

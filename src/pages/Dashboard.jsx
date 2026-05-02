@@ -278,7 +278,7 @@ export default function Dashboard(){
   const isRestreint = ["contrib", "dir-eta"].includes(user?.role);
   const userEtabIds = user?.etablissement_ids || [];
   const [etablissements,setEtablissements]=useState([]);
-  const [selectedEtabs,setSelectedEtabs]=useState([]);
+  const [selectedEtabs,setSelectedEtabs]=useState(isRestreint ? (user?.etablissement_ids || []) : []);
   const [selectedKpi,setSelectedKpi]=useState("total_hospitalisations");
   const [compareMode,setCompareMode]=useState(false);
   const [modalEtab,setModalEtab]=useState(null);
@@ -366,7 +366,7 @@ export default function Dashboard(){
   useEffect(()=>{
     setLoading(true);
     const base=buildParams();
-    const etabsToQuery=selectedEtabs.length>0&&selectedEtabs.length<etablissements.length?selectedEtabs:[null];
+    const etabsToQuery=isRestreint&&selectedEtabs.length>0?selectedEtabs:selectedEtabs.length>0&&selectedEtabs.length<etablissements.length?selectedEtabs:[null];
 
     // Stats enrichies
     const enrichParams=new URLSearchParams(base);
