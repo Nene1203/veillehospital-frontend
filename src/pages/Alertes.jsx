@@ -1,5 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useContext } from "react";
 import { getEtablissements, getKpis, getParEtablissement, getAnneesDisponibles } from "../data/api";
+import { AuthContext } from "../context/AuthContext";
 
 const BASE_URL = import.meta.env.VITE_API_URL || "http://localhost:8000";
 
@@ -88,12 +89,17 @@ function StatCard({ label, value, color, bg, icon }) {
 }
 
 export default function Alertes({ onNavigate }) {
+  const { user } = useContext(AuthContext);
   const [alertes, setAlertes] = useState([]);
   const [loading, setLoading] = useState(true);
   const [lastUpdate, setLastUpdate] = useState(null);
   const [filterLevel, setFilterLevel] = useState("tous");
   const [annee, setAnnee] = useState("");
   const [annees, setAnnees] = useState([]);
+
+  // Établissements accessibles selon le rôle
+  const isRestreint = ["contrib", "dir-eta"].includes(user?.role);
+  const etabIds = isRestreint ? (user?.etablissement_ids || []) : null;
 
   useEffect(() => {
     getAnneesDisponibles().then((ans) => {
@@ -110,15 +116,19 @@ export default function Alertes({ onNavigate }) {
   const analyserAlertes = async () => {
     setLoading(true);
     try {
-      const [etabs, statsEtabs] = await Promise.all([
-        getEtablissements(),
-        getParEtablissement(annee ? { annee } : {}),
-      ]);
+      // Récupérer les stats par établissement
+      // Pour les rôles restreints, on filtre automatiquement via l'API
+      const statsEtabs = await getParEtablissement(annee ? { annee } : {});
+
+      // Filtrer côté frontend selon les établissements accessibles
+      const statsFiltrees = isRestreint && etabIds
+        ? statsEtabs.filter((s) => etabIds.includes(s.etablissement_id))
+        : statsEtabs;
 
       const nouvAlerts = [];
 
       // ── 1. Taux de remplissage critique ─────────────────────
-      statsEtabs.forEach((stat) => {
+      statsFiltrees.forEach((stat) => {
         if (!stat.taux_remplissage) return;
         if (stat.taux_remplissage >= 95) {
           nouvAlerts.push({
@@ -127,7 +137,7 @@ export default function Alertes({ onNavigate }) {
             type: "Capacité",
             etablissement: stat.etablissement_nom,
             message: `Taux de remplissage critique — capacité presque atteinte`,
-            detail: `Taux actuel : ${stat.taux_remplissage}%. Au-delà de 95%, l'établissement risque de ne plus pouvoir accueillir de nouveaux patients. Une action corrective est recommandée.`,
+            detail: `Taux actuel : ${stat.taux_remplissage}%. Au-delà de 95%, l'établissement risque de ne plus pouvoir accueillir de nouveaux patients.`,
             valeur: stat.taux_remplissage,
             unite: "%",
           });
@@ -146,11 +156,11 @@ export default function Alertes({ onNavigate }) {
       });
 
       // ── 2. Durée de séjour anormalement longue ──────────────
-      const dureesValides = statsEtabs.filter((s) => s.duree_moyenne).map((s) => s.duree_moyenne);
+      const dureesValides = statsFiltrees.filter((s) => s.duree_moyenne).map((s) => s.duree_moyenne);
       if (dureesValides.length > 0) {
         const moyDuree = dureesValides.reduce((a, b) => a + b, 0) / dureesValides.length;
         const seuilDuree = moyDuree * 1.5;
-        statsEtabs.forEach((stat) => {
+        statsFiltrees.forEach((stat) => {
           if (stat.duree_moyenne && stat.duree_moyenne > seuilDuree) {
             nouvAlerts.push({
               id: `duree-${stat.etablissement_id}`,
@@ -158,7 +168,7 @@ export default function Alertes({ onNavigate }) {
               type: "Durée séjour",
               etablissement: stat.etablissement_nom,
               message: `Durée moyenne de séjour anormalement longue`,
-              detail: `Durée actuelle : ${stat.duree_moyenne}j. Moyenne du réseau : ${moyDuree.toFixed(1)}j. Cet établissement dépasse de ${((stat.duree_moyenne - moyDuree) / moyDuree * 100).toFixed(0)}% la moyenne.`,
+              detail: `Durée actuelle : ${stat.duree_moyenne}j. Moyenne : ${moyDuree.toFixed(1)}j. Cet établissement dépasse de ${((stat.duree_moyenne - moyDuree) / moyDuree * 100).toFixed(0)}% la moyenne.`,
               valeur: stat.duree_moyenne,
               unite: "j",
             });
@@ -167,7 +177,7 @@ export default function Alertes({ onNavigate }) {
       }
 
       // ── 3. Taux de réhospitalisation élevé ──────────────────
-      statsEtabs.forEach((stat) => {
+      statsFiltrees.forEach((stat) => {
         if (!stat.hospitalisations || stat.hospitalisations === 0) return;
         const tauxRehospit = (stat.rehospitalisations / stat.hospitalisations) * 100;
         if (tauxRehospit >= 15) {
@@ -177,7 +187,7 @@ export default function Alertes({ onNavigate }) {
             type: "Réhospitalisation",
             etablissement: stat.etablissement_nom,
             message: `Taux de réhospitalisation élevé — qualité des soins à vérifier`,
-            detail: `${stat.rehospitalisations} réhospitalisations sur ${stat.hospitalisations} hospitalisations (${tauxRehospit.toFixed(1)}%). Le seuil d'alerte est fixé à 15%.`,
+            detail: `${stat.rehospitalisations} réhospitalisations sur ${stat.hospitalisations} hospitalisations (${tauxRehospit.toFixed(1)}%).`,
             valeur: tauxRehospit.toFixed(1),
             unite: "%",
           });
@@ -185,7 +195,7 @@ export default function Alertes({ onNavigate }) {
       });
 
       // ── 4. Établissements sans données ──────────────────────
-      const sansData = statsEtabs.filter((s) => s.hospitalisations === 0);
+      const sansData = statsFiltrees.filter((s) => s.hospitalisations === 0);
       sansData.forEach((stat) => {
         nouvAlerts.push({
           id: `nodata-${stat.etablissement_id}`,
@@ -193,14 +203,14 @@ export default function Alertes({ onNavigate }) {
           type: "Saisie manquante",
           etablissement: stat.etablissement_nom,
           message: `Aucune donnée saisie pour la période sélectionnée`,
-          detail: `Cet établissement n'a pas saisi de veille pour ${annee ? `l'année ${annee}` : "la période sélectionnée"}. Vérifiez si la saisie est à jour.`,
+          detail: `Cet établissement n'a pas saisi de veille pour ${annee ? `l'année ${annee}` : "la période sélectionnée"}.`,
           valeur: null,
           unite: "",
         });
       });
 
       // ── 5. Taux de transferts élevé ─────────────────────────
-      statsEtabs.forEach((stat) => {
+      statsFiltrees.forEach((stat) => {
         if (!stat.hospitalisations || stat.hospitalisations === 0) return;
         const tauxTransferts = (stat.transferts / stat.hospitalisations) * 100;
         if (tauxTransferts >= 10) {
@@ -210,7 +220,7 @@ export default function Alertes({ onNavigate }) {
             type: "Transferts",
             etablissement: stat.etablissement_nom,
             message: `Taux de transferts inhabituellement élevé`,
-            detail: `${stat.transferts} transferts sur ${stat.hospitalisations} hospitalisations (${tauxTransferts.toFixed(1)}%). Cela peut indiquer un manque de capacité ou de compétences spécifiques.`,
+            detail: `${stat.transferts} transferts sur ${stat.hospitalisations} hospitalisations (${tauxTransferts.toFixed(1)}%).`,
             valeur: tauxTransferts.toFixed(1),
             unite: "%",
           });
@@ -256,7 +266,10 @@ export default function Alertes({ onNavigate }) {
             Alertes & Anomalies
           </h1>
           <p style={{ fontSize: 13, color: "#64748B", margin: 0 }}>
-            Détection automatique des situations à surveiller sur le réseau HévivA
+            {isRestreint
+              ? `Alertes de vos ${etabIds?.length || 0} établissement(s) rattaché(s)`
+              : "Détection automatique des situations à surveiller sur le réseau HévivA"
+            }
             {lastUpdate && <span style={{ color: "#ADB5BD" }}> · Mis à jour à {lastUpdate}</span>}
           </p>
         </div>
@@ -308,13 +321,12 @@ export default function Alertes({ onNavigate }) {
         <div style={{ display: "flex", alignItems: "center", justifyContent: "center",
           padding: "60px 0", gap: 10, color: "#ADB5BD", fontSize: 13 }}>
           <div className="spinner" />
-          Analyse du réseau en cours…
+          Analyse en cours…
         </div>
       ) : filtered.length === 0 ? (
         <div style={{
           textAlign: "center", padding: "60px 20px",
-          border: "2px dashed #E2E8F0", borderRadius: 12,
-          color: "#ADB5BD",
+          border: "2px dashed #E2E8F0", borderRadius: 12, color: "#ADB5BD",
         }}>
           <div style={{ fontSize: 32, marginBottom: 10 }}>✅</div>
           <div style={{ fontSize: 14, fontWeight: 600, color: "#64748B" }}>

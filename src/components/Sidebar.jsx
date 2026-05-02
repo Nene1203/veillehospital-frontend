@@ -41,23 +41,72 @@ const IconLogout = () => (
   </svg>
 );
 
+const ROLE_LABELS = {
+  "admin": "Administrateur",
+  "dir-hev": "Direction Héviva",
+  "dir-eta": "Direction Établissement",
+  "contrib": "Contributeur",
+};
+
 export default function Sidebar({ currentPage, onNavigate, user, onLogout }) {
   const auth = useContext(AuthContext);
   const currentUser = user || auth?.user;
   const handleLogout = onLogout || auth?.logout;
 
+  const role = currentUser?.role || "contrib";
+  const nbEtabs = currentUser?.etablissement_ids?.length || 0;
+
+  // Accès restreint : contrib et dir-eta voient seulement leurs établissements
+  const isRestreint = ["contrib", "dir-eta"].includes(role);
+
   const initials = currentUser?.prenom && currentUser?.nom
     ? `${currentUser.prenom[0]}${currentUser.nom[0]}`.toUpperCase()
     : currentUser?.email?.slice(0, 2).toUpperCase() || "SA";
 
-  const navItems = [
-    { page: "accueil",   label: "Accueil",        icon: <IconHome /> },
-    { page: "dashboard", label: "Dashboard",       icon: <IconDashboard />, dot: true },
-    { page: "saisie",    label: "Nouvelle saisie", icon: <IconEdit /> },
-    { page: "carte",     label: "Carte du réseau", icon: <IconHome /> },
-    { page: "comparaison", label: "Comparaison établissements", icon: <IconDashboard /> },
-    { page: "alertes", label: "Alertes & Anomalies", icon: <IconDashboard /> },
+  const allNavItems = [
+    {
+      page: "accueil",
+      label: "Accueil",
+      icon: <IconHome />,
+      visible: true,
+    },
+    {
+      page: "dashboard",
+      label: "Dashboard",
+      icon: <IconDashboard />,
+      dot: true,
+      visible: true,
+    },
+    {
+      page: "saisie",
+      label: "Nouvelle saisie",
+      icon: <IconEdit />,
+      // Saisie : admin et contrib seulement
+      visible: ["admin", "contrib"].includes(role),
+    },
+    {
+      page: "carte",
+      label: "Carte du réseau",
+      icon: <IconHome />,
+      // Carte : uniquement admin et dir-hev (vue globale)
+      visible: ["admin", "dir-hev"].includes(role),
+    },
+    {
+      page: "comparaison",
+      label: "Comparaison établissements",
+      icon: <IconDashboard />,
+      // Comparaison : admin et dir-hev toujours, contrib/dir-eta seulement si 2+ établissements
+      visible: ["admin", "dir-hev"].includes(role) || (isRestreint && nbEtabs >= 2),
+    },
+    {
+      page: "alertes",
+      label: "Alertes & Anomalies",
+      icon: <IconDashboard />,
+      visible: true,
+    },
   ];
+
+  const navItems = allNavItems.filter((item) => item.visible);
 
   const adminItems = [
     { page: "campagnes", label: "Campagnes", icon: <IconClipboard />, badge: "Admin" },
@@ -111,10 +160,16 @@ export default function Sidebar({ currentPage, onNavigate, user, onLogout }) {
             {currentUser?.prenom ? `${currentUser.prenom} ${currentUser.nom}` : "Super Admin"}
           </div>
           <div className="sidebar-user-role">
-            {currentUser?.role === "admin" ? "Administrateur" : "Utilisateur"}
+            {ROLE_LABELS[role] || "Utilisateur"}
           </div>
         </div>
-        <IconLogout onClick={handleLogout} title="Se déconnecter" />
+        <button
+          onClick={handleLogout}
+          title="Se déconnecter"
+          style={{ background: "none", border: "none", cursor: "pointer", padding: 0, display: "flex", alignItems: "center" }}
+        >
+          <IconLogout />
+        </button>
       </div>
     </aside>
   );

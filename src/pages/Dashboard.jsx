@@ -1,4 +1,5 @@
-import { useState, useEffect, useRef, useCallback } from "react";
+import { useState, useEffect, useRef, useCallback, useContext } from "react";
+import { AuthContext } from "../context/AuthContext";
 import {
   getKpis, getParEtablissement, getParPathologie, getEvolution,
   getEtablissements, getAnneesDisponibles, getMoisDisponibles,
@@ -272,7 +273,10 @@ function ModalDetail({etab,filters,onClose}){
 }
 
 // ── Dashboard principal ───────────────────────────────────────
-export default function Dashboard(){
+export default function Dashboard(){ 
+  const { user } = useContext(AuthContext);
+  const isRestreint = ["contrib", "dir-eta"].includes(user?.role);
+  const userEtabIds = user?.etablissement_ids || [];
   const [etablissements,setEtablissements]=useState([]);
   const [selectedEtabs,setSelectedEtabs]=useState([]);
   const [selectedKpi,setSelectedKpi]=useState("total_hospitalisations");
@@ -326,7 +330,10 @@ export default function Dashboard(){
       api("/dashboard/filtres/motifs"),
       api("/dashboard/filtres/lieux"),
     ]).then(([etabs,ans,th,mo,li])=>{
-      setEtablissements(etabs);setAnnees(ans);
+      const etabsFiltres = isRestreint ? etabs.filter(e => userEtabIds.includes(e.id)) : etabs;
+      setEtablissements(etabsFiltres);
+      if (isRestreint && etabsFiltres.length > 0) { setSelectedEtabs(etabsFiltres.map(e => e.id)); }
+      setAnnees(ans);
       setTypesHosp(th);setMotifs(mo);setLieux(li);
     });
   },[]);
@@ -457,7 +464,7 @@ export default function Dashboard(){
 
       {/* Filtres principaux */}
       <div style={{padding:"10px 24px",background:"#F8F9FA",borderBottom:"1px solid #E2E8F0",display:"flex",gap:8,flexWrap:"wrap",alignItems:"center"}}>
-        <EtabMultiSelect etablissements={etablissements} selected={selectedEtabs} onChange={setSelectedEtabs}/>
+        {isRestreint ? (<div style={{padding:"7px 12px",border:"1px solid #E2E8F0",borderRadius:6,background:"#F8F9FA",color:"#495057",fontSize:12,display:"flex",alignItems:"center",gap:6}}><span>🔒</span><span>{etablissements.length===1?etablissements[0]?.nom:`${etablissements.length} établissements rattachés`}</span></div>) : (<EtabMultiSelect etablissements={etablissements} selected={selectedEtabs} onChange={setSelectedEtabs}/>)}
         <select style={fStyle} value={annee} onChange={e=>setAnnee(e.target.value)}>
           <option value="">Toutes les années</option>
           {annees.map(a=><option key={a} value={a}>{a}</option>)}
